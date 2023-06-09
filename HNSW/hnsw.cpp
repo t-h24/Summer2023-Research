@@ -3,6 +3,8 @@
 #include <map>
 #include <math.h>
 #include <algorithm>
+#include <queue>
+#include <set>
 
 using namespace std;
 
@@ -135,14 +137,6 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
         for (Node* neighbor : neighbors) {
             if (hnsw->layers[level]->mappings[neighbor->index].size() > max_con) {
                 vector<Node*> trimmed = select_neighbors_simple(hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
-                
-                if (DEBUG_INSERT) {
-                    cout << "Dropped neighbors at level " << level << " for node " << neighbor->index << " are ";
-                    for (Node* node : hnsw->layers[level]->mappings[neighbor->index])
-                        cout << node->index << " ";
-                    cout << endl;
-                }
-                
                 hnsw->layers[level]->mappings[neighbor->index] = trimmed;
             }
         }
@@ -161,33 +155,30 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
  * SEARCH-LAYER(hnsw, q, ep, ef, lc)
 */
 vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, int num_to_return, int layer_num) {
-    vector<Node*> visited;
-    vector<Node*> candidates;
-    vector<Node*> found;
+    auto close_dist_comp = [query](Node* a, Node* b) {	
+        return query->distance(a) > query->distance(b);	
+    };
+    auto far_dist_comp = [query](Node* a, Node* b) {
+        return query->distance(a) < query->distance(b);	
+    };
+    set<int> visited;
+    priority_queue<Node*, vector<Node*>, decltype(close_dist_comp)> candidates(close_dist_comp);
+    priority_queue<Node*, vector<Node*>, decltype(far_dist_comp)> found(far_dist_comp);
 
     // Add entry points to visited, candidates, and found
     for (Node* entry_point : entry_points) {
-        visited.push_back(entry_point);
-        candidates.push_back(entry_point);
-        found.push_back(entry_point);
+        visited.insert(entry_point->index);
+        candidates.push(entry_point);
+        found.push(entry_point);
     }
 
     while (candidates.size() > 0) {
-        //TODO optimize with priority queue
         // Get and remove closest element in candiates to query
-        Node* closest = candidates[0];
-        for (int i = 1; i < candidates.size(); i++) {
-            if (query->distance(candidates[i]) < query->distance(closest))
-                closest = candidates[i];
-        }
-        candidates.erase(remove(candidates.begin(), candidates.end(), closest), candidates.end());
+        Node* closest = candidates.top();
+        candidates.pop();
 
         // Get furthest element in found to query
-        Node* furthest = found[0];
-        for (int i = 1; i < found.size(); i++) {
-            if (query->distance(found[i]) > query->distance(furthest))
-                furthest = found[i];
-        }
+        Node* furthest = found.top();
 
         // If closest is further than furthest, stop
         if (query->distance(closest) > query->distance(furthest))
@@ -197,38 +188,33 @@ vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, 
         vector<Node*>& neighbors = hnsw->layers[layer_num]->mappings[closest->index];
 
         for (Node* neighbor : neighbors) {
-            if (find(visited.begin(), visited.end(), neighbor) == visited.end()) {
-                visited.push_back(neighbor);
+            if (visited.find(neighbor->index) == visited.end()) {
+                visited.insert(neighbor->index);
 
-                // Get furthest element in found to query using distance()
-                Node* furthestInner = found[0];
-                for (int i = 1; i < found.size(); i++) {
-                    if (query->distance(found[i]) > query->distance(furthestInner))
-                        furthestInner = found[i];
-                }
+                // Get furthest element in found to query
+                Node* furthest_inner = found.top();
 
                 // If distance from query to neighbor is less than the distance from query to furthest,
                 // or if the size of found is less than num_to_return,
                 // add to candidates and found
-                if (query->distance(neighbor) < query->distance(furthestInner) || found.size() < num_to_return) {
-                    candidates.push_back(neighbor);
-                    found.push_back(neighbor);
+                if (query->distance(neighbor) < query->distance(furthest_inner) || found.size() < num_to_return) {
+                    candidates.push(neighbor);
+                    found.push(neighbor);
 
                     // If found is greater than num_to_return, remove furthest
-                    if (found.size() > num_to_return) {
-                        Node* furthestRemove = found[0];
-                        for (int i = 1; i < found.size(); i++) {
-                            if (query->distance(found[i]) > query->distance(furthestRemove))
-                                furthestRemove = found[i];
-                        }
-
-                        found.erase(remove(found.begin(), found.end(), furthestRemove), found.end());
-                    }
+                    if (found.size() > num_to_return)
+                        found.pop();
                 }
             }
         }
     }
-    return found;
+
+    vector<Node*> result;
+    while (found.size() > 0) {
+        result.push_back(found.top());
+        found.pop();
+    }
+    return result;
 }
 
 /**
@@ -240,22 +226,24 @@ vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> can
     if (candidates.size() <= num)
         return candidates;
 
+    auto dist_comp = [query](Node* a, Node* b) {
+        return query->distance(a) > query->distance(b);
+    };
+    priority_queue<Node*, vector<Node*>, decltype(dist_comp)> queue(dist_comp, candidates);
+
+    // Fetch num closest elements
     vector<Node*> neighbors;
-    //TODO: Not efficient, use priority queue
     for (int i = 0; i < num; i++) {
-        Node* closest = candidates[0];
-        for (int j = 1; j < candidates.size(); j++) {
-            if (query->distance(candidates[j]) < query->distance(closest))
-                closest = candidates[j];
-        }
-        neighbors.push_back(closest);
-        candidates.erase(remove(candidates.begin(), candidates.end(), closest), candidates.end());
+        neighbors.push_back(queue.top());
+        queue.pop();
     }
 
     if (DEBUG_INSERT && drop) {
         cout << "Dropped neighbors for node " << query->index << " are ";
-        for (Node* node : candidates)
-            cout << node->index << " ";
+        while (!queue.empty()) {
+            cout << queue.top()->index << " ";
+            queue.pop();
+        }
         cout << endl;
     }
     return neighbors;
