@@ -6,10 +6,12 @@
 
 using namespace std;
 
-const int DIMENSIONS = 10;
+const int DIMENSIONS = 2;
 const int NUM_NODES = 100;
-const int MAX_CONNECTIONS = 20;
+const int OPTIMAL_CONNECTIONS = 15;
+const int MAX_CONNECTIONS = 30;
 const int EF_CONSTRUCTION = 30;
+const double SCALING_FACTOR = 0.5;
 
 class Node {
 public:
@@ -40,6 +42,7 @@ class HNSW {
 public:
     Node** nodes;
     vector<HNSWLayer*> layers;
+    Node* entry_point;
 
     HNSW(Node** nodes) : nodes(nodes) {}
 
@@ -71,9 +74,9 @@ vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> can
  * Alg 1
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
 */
-HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor) {
+HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor) {
     vector<Node*> found;
-    Node* entry_point = hnsw->nodes[0]; //TODO
+    Node* entry_point = hnsw->entry_point;
     vector<Node*> entry_points;
     entry_points.push_back(entry_point);
     int top = hnsw->get_layers() - 1;
@@ -81,6 +84,13 @@ HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, floa
     // Get node level
     double random = (double)rand() / RAND_MAX;
     int node_level = -log(random) * normal_factor;
+
+    // Add layers if needed
+    if (node_level > top)
+        for (int i = top + 1; i <= node_level; i++) {
+            HNSWLayer* layer = new HNSWLayer();
+            hnsw->layers.push_back(layer);
+        }
 
     // Get closest element by using search_layer to find the closest point at each level
     for (int level = top; level >= node_level + 1; level--) {
@@ -91,7 +101,7 @@ HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, floa
     for (int level = min(top, node_level); level >= 0; level--) {
         // Get nearest elements
         found = search_layer(hnsw, query, entry_points, ef_con, level);
-        vector<Node*> neighbors = select_neighbors_simple(hnsw, query, found, est_con);
+        vector<Node*> neighbors = select_neighbors_simple(hnsw, query, found, opt_con);
 
         // Add neighbors to HNSW layer mappings
         hnsw->layers[level]->mappings[query->index] = neighbors;
@@ -111,7 +121,9 @@ HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, floa
         entry_points = found;
     }
 
-    //TODO if l>L set enter-point for hnsw to q
+    if (node_level > top) {
+        hnsw->entry_point = query;
+    }
     return hnsw;
 }
 
@@ -133,12 +145,13 @@ vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, 
 
     while (candidates.size() > 0) {
         //TODO optimize with priority queue
-        // Get closest element in candiates to query
+        // Get and remove closest element in candiates to query
         Node* closest = candidates[0];
         for (int i = 1; i < candidates.size(); i++) {
             if (query->distance(candidates[i]) < query->distance(closest))
                 closest = candidates[i];
         }
+        candidates.erase(remove(candidates.begin(), candidates.end(), closest), candidates.end());
 
         // Get furthest element in found to query
         Node* furthest = found[0];
@@ -217,12 +230,13 @@ int main() {
 
     // Insert first node into first layer with no connections
     hnsw->layers[0]->mappings.insert(pair<int, vector<Node*>>(0, vector<Node*>()));
+    hnsw->entry_point = nodes[0];
 
-    // Insert first nodes
+    // Insert nodes
+    double normal_factor = 1 / -log(SCALING_FACTOR);
     for (int i = 1; i < NUM_NODES; i++) {
-        cout << "Inserting node " << i << endl; //TODO: test
         Node* query = nodes[i];
-        insert(hnsw, query, 0, MAX_CONNECTIONS, EF_CONSTRUCTION, 0.5);//TODO what is est_con?
+        insert(hnsw, query, OPTIMAL_CONNECTIONS, MAX_CONNECTIONS, EF_CONSTRUCTION, normal_factor);
     }
 
     return 0;
