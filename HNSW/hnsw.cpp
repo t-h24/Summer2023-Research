@@ -13,8 +13,12 @@ const int MAX_CONNECTIONS = 30;
 const int EF_CONSTRUCTION = 30;
 const double SCALING_FACTOR = 0.5;
 
+const int NUM_QUERIES = 10;
+const int NUM_RETURN = 15;
+
 const bool DEBUG_INSERT = false;
 const bool DEBUG_GRAPH = false;
+const bool DEBUG_SEARCH = false;
 
 class Node {
 public:
@@ -79,9 +83,7 @@ vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> can
 */
 HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor) {
     vector<Node*> found;
-    Node* entry_point = hnsw->entry_point;
-    vector<Node*> entry_points;
-    entry_points.push_back(entry_point);
+    vector<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
     
     // Get node level
@@ -89,7 +91,7 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
     int node_level = -log(random) * normal_factor;
 
     if (DEBUG_INSERT)
-        cout << "Inserting node " << query->index << " at level " << node_level << " with entry point " << entry_point->index << endl;
+        cout << "Inserting node " << query->index << " at level " << node_level << " with entry point " << entry_points[0]->index << endl;
 
     // Add layers if needed
     if (node_level > top)
@@ -104,10 +106,10 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
     // Get closest element by using search_layer to find the closest point at each level
     for (int level = top; level >= node_level + 1; level--) {
         found = search_layer(hnsw, query, entry_points, 1, level);
-        entry_point = found[0];
+        entry_points = found;
 
         if (DEBUG_INSERT)
-            cout << "Closest point at level " << level << " is " << entry_point->index << endl;
+            cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
     }
 
     for (int level = min(top, node_level); level >= 0; level--) {
@@ -259,9 +261,35 @@ vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> can
     return neighbors;
 }
 
+/**
+ * Alg 5
+ * K-NN-SEARCH(hnsw, q, K, ef)
+*/
+vector<Node*> nn_search(HNSW* hnsw, Node* query, int num_to_return, int ef_con) {
+    vector<Node*> found;
+    vector<Node*> entry_points = { hnsw->entry_point };
+    int top = hnsw->get_layers() - 1;
+
+    if (DEBUG_SEARCH)
+        cout << "Searching for " << num_to_return << " nearest neighbors of node " << query->index << endl;
+
+    // Get closest element by using search_layer to find the closest point at each level
+    for (int level = top; level >= 1; level--) {
+        found = search_layer(hnsw, query, entry_points, 1, level);
+        entry_points = found;
+
+        if (DEBUG_SEARCH)
+            cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
+    }
+
+    found = search_layer(hnsw, query, entry_points, num_to_return, 0);
+    return found;
+}
+
 int main() {
     // Generate NUM_NODES amount of nodes
     Node** nodes = generate_nodes(NUM_NODES);
+    cout << "Beginning HNSW construction" << endl;
 
     HNSW* hnsw = new HNSW(nodes);
     hnsw->layers.push_back(new HNSWLayer());
@@ -289,6 +317,20 @@ int main() {
             }
         }
     }
+    
+    // Generate NUM_QUERIES amount of nodes
+    Node** queries = generate_nodes(NUM_QUERIES);
+    cout << "Beginning search" << endl;
 
+    for (int i = 0; i < NUM_QUERIES; ++i) {
+        Node* query = queries[i];
+        vector<Node*> found = nn_search(hnsw, query, NUM_RETURN, EF_CONSTRUCTION);
+
+        // Print out found
+        cout << "Found " << found.size() << " nearest neighbors of node " << query->index << ": ";
+        for (Node* node : found)
+            cout << node->index << " ";
+        cout << endl;
+    }
     return 0;
 }
