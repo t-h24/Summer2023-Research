@@ -7,11 +7,14 @@
 using namespace std;
 
 const int DIMENSIONS = 2;
-const int NUM_NODES = 100;
+const int NUM_NODES = 200;
 const int OPTIMAL_CONNECTIONS = 15;
 const int MAX_CONNECTIONS = 30;
 const int EF_CONSTRUCTION = 30;
 const double SCALING_FACTOR = 0.5;
+
+const bool DEBUG_INSERT = false;
+const bool DEBUG_GRAPH = false;
 
 class Node {
 public:
@@ -68,7 +71,7 @@ Node** generate_nodes(int amount) {
 
 HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor);
 vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, int num_to_return, int layer_num);
-vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> candidates, int num);
+vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> candidates, int num, bool drop);
 
 /**
  * Alg 1
@@ -85,9 +88,15 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
     double random = (double)rand() / RAND_MAX;
     int node_level = -log(random) * normal_factor;
 
+    if (DEBUG_INSERT)
+        cout << "Inserting node " << query->index << " at level " << node_level << " with entry point " << entry_point->index << endl;
+
     // Add layers if needed
     if (node_level > top)
         for (int i = top + 1; i <= node_level; i++) {
+            if (DEBUG_INSERT)
+                cout << "Adding layer " << i << endl;
+
             HNSWLayer* layer = new HNSWLayer();
             hnsw->layers.push_back(layer);
         }
@@ -96,12 +105,22 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
     for (int level = top; level >= node_level + 1; level--) {
         found = search_layer(hnsw, query, entry_points, 1, level);
         entry_point = found[0];
+
+        if (DEBUG_INSERT)
+            cout << "Closest point at level " << level << " is " << entry_point->index << endl;
     }
 
     for (int level = min(top, node_level); level >= 0; level--) {
         // Get nearest elements
         found = search_layer(hnsw, query, entry_points, ef_con, level);
-        vector<Node*> neighbors = select_neighbors_simple(hnsw, query, found, opt_con);
+        vector<Node*> neighbors = select_neighbors_simple(hnsw, query, found, opt_con, false);
+
+        if (DEBUG_INSERT) {
+            cout << "Neighbors at level " << level << " are ";
+            for (Node* neighbor : neighbors)
+                cout << neighbor->index << " ";
+            cout << endl;
+        }
 
         // Add neighbors to HNSW layer mappings
         hnsw->layers[level]->mappings[query->index] = neighbors;
@@ -113,7 +132,15 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
         // Trim neighbor connections if needed
         for (Node* neighbor : neighbors) {
             if (hnsw->layers[level]->mappings[neighbor->index].size() > max_con) {
-                vector<Node*> trimmed = select_neighbors_simple(hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con);
+                vector<Node*> trimmed = select_neighbors_simple(hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
+                
+                if (DEBUG_INSERT) {
+                    cout << "Dropped neighbors at level " << level << " for node " << neighbor->index << " are ";
+                    for (Node* node : hnsw->layers[level]->mappings[neighbor->index])
+                        cout << node->index << " ";
+                    cout << endl;
+                }
+                
                 hnsw->layers[level]->mappings[neighbor->index] = trimmed;
             }
         }
@@ -165,7 +192,7 @@ vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, 
             break;
 
         // Get neighbors of closest in HNSWLayer
-        vector<Node*> neighbors = hnsw->layers[layer_num]->mappings[closest->index];
+        vector<Node*>& neighbors = hnsw->layers[layer_num]->mappings[closest->index];
 
         for (Node* neighbor : neighbors) {
             if (find(visited.begin(), visited.end(), neighbor) == visited.end()) {
@@ -205,8 +232,12 @@ vector<Node*> search_layer(HNSW* hnsw, Node* query, vector<Node*> entry_points, 
 /**
  * Alg 3
  * SELECT-NEIGHBORS-SIMPLE(hnsw, q, C, M)
+ * Extra argument: drop (for debugging)
 */
-vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> candidates, int num) {
+vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> candidates, int num, bool drop) {
+    if (candidates.size() <= num)
+        return candidates;
+
     vector<Node*> neighbors;
     //TODO: Not efficient, use priority queue
     for (int i = 0; i < num; i++) {
@@ -217,6 +248,13 @@ vector<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, vector<Node*> can
         }
         neighbors.push_back(closest);
         candidates.erase(remove(candidates.begin(), candidates.end(), closest), candidates.end());
+    }
+
+    if (DEBUG_INSERT && drop) {
+        cout << "Dropped neighbors for node " << query->index << " are ";
+        for (Node* node : candidates)
+            cout << node->index << " ";
+        cout << endl;
     }
     return neighbors;
 }
@@ -237,6 +275,19 @@ int main() {
     for (int i = 1; i < NUM_NODES; i++) {
         Node* query = nodes[i];
         insert(hnsw, query, OPTIMAL_CONNECTIONS, MAX_CONNECTIONS, EF_CONSTRUCTION, normal_factor);
+    }
+
+    // Print results
+    if (DEBUG_GRAPH) {
+        for (int i = hnsw->layers.size() - 1; i >= 0; i--) {
+            cout << "Layer " << i << " connections: " << endl;
+            for (auto const& mapping : hnsw->layers[i]->mappings) {
+                cout << mapping.first << ": ";
+                for (Node* node : mapping.second)
+                    cout << node->index << " ";
+                cout << endl;
+            }
+        }
     }
 
     return 0;
