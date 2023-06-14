@@ -23,7 +23,7 @@ const bool DEBUG_INSERT = false;
 const bool DEBUG_GRAPH = false;
 const bool DEBUG_SEARCH = false;
 
-const bool EXPORT_GRAPH = false;
+const bool EXPORT_GRAPH = true;
 
 class Node {
 public:
@@ -324,6 +324,36 @@ int main() {
         for (Node* node : found)
             cout << node->index << " ";
         cout << endl;
+    }
+
+    if (EXPORT_GRAPH) {
+        auto level_comp = [](Node* a, Node* b) {
+            return a->level < b->level;
+        };
+        vector<Node*> nodes_vec(nodes, nodes + NUM_NODES);
+        sort(nodes_vec.begin(), nodes_vec.end(), level_comp);
+        ofstream file("runs/graph.txt");
+
+        int start_loc = 0;
+        bool skipped = false;
+        // Each level contains its nodes and all nodes from higher levels
+        for (int level = 0; level < hnsw->get_layers(); ++level) {
+            skipped = false;
+            file << "Level " << level << endl;
+            for (int i = start_loc; i < nodes_vec.size(); ++i) {
+                for (int dim = 0; dim < DIMENSIONS; dim++) {
+                    file << nodes_vec[i]->values[dim];
+                    if (dim != DIMENSIONS - 1)
+                        file << ",";
+                }
+                file << endl;
+
+                if (!skipped && nodes_vec[i]->level > level) {
+                    start_loc = i;
+                    skipped = true;
+                }
+            }
+        }
     }
     return 0;
 }
