@@ -9,21 +9,25 @@
 
 using namespace std;
 
+const int GENERATION_SEED = 0;
+const int GRAPH_SEED = 100000;
+
 const int DIMENSIONS = 2;
-const int NUM_NODES = 20;
-const int OPTIMAL_CONNECTIONS = 3;
-const int MAX_CONNECTIONS = 5;
-const int EF_CONSTRUCTION = 7;
+const int NUM_NODES = 40;
+const int OPTIMAL_CONNECTIONS = 2;
+const int MAX_CONNECTIONS = 3;
+const int EF_CONSTRUCTION = 40;
 const double SCALING_FACTOR = 0.5;
 
 const int NUM_QUERIES = 10;
-const int NUM_RETURN = 15;
+const int NUM_RETURN = 5;
 
 const bool DEBUG_INSERT = false;
 const bool DEBUG_GRAPH = false;
 const bool DEBUG_SEARCH = false;
 
 const bool EXPORT_GRAPH = true;
+const bool EXPORT_QUERIES = true;
 
 class Node {
 public:
@@ -64,9 +68,9 @@ public:
     }
 };
 
-Node** generate_nodes(int amount) {
+Node** generate_nodes(int amount, int seed) {
     // Pre-set seed (consistent outputs)
-    srand(0);
+    srand(seed);
     Node** nodes = new Node*[amount];
     for (int i = 0; i < amount; i++) {
         float values[DIMENSIONS];
@@ -257,8 +261,9 @@ deque<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, deque<Node*> candi
 /**
  * Alg 5
  * K-NN-SEARCH(hnsw, q, K, ef)
+ * Extra argument: path (for traversal debugging)
 */
-deque<Node*> nn_search(HNSW* hnsw, Node* query, int num_to_return, int ef_con) {
+deque<Node*> nn_search(HNSW* hnsw, Node* query, int num_to_return, int ef_con, vector<int>& path) {
     deque<Node*> found;
     deque<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
@@ -270,18 +275,29 @@ deque<Node*> nn_search(HNSW* hnsw, Node* query, int num_to_return, int ef_con) {
     for (int level = top; level >= 1; level--) {
         found = search_layer(hnsw, query, entry_points, 1, level);
         entry_points = found;
+        path.push_back(found[0]->index);
 
         if (DEBUG_SEARCH)
             cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
     }
 
-    found = search_layer(hnsw, query, entry_points, num_to_return, 0);
-    return found;
+    found = search_layer(hnsw, query, entry_points, ef_con, 0);
+    return select_neighbors_simple(hnsw, query, found, num_to_return, false);
 }
 
 int main() {
+    // Sanity checks
+    if (OPTIMAL_CONNECTIONS > MAX_CONNECTIONS) {
+        cout << "Optimal connections cannot be greater than max connections" << endl;
+        return 1;
+    }
+    if (EF_CONSTRUCTION < MAX_CONNECTIONS) {
+        cout << "Max connections must be less than beam width" << endl;
+        return 1;
+    }
+
     // Generate NUM_NODES amount of nodes
-    Node** nodes = generate_nodes(NUM_NODES);
+    Node** nodes = generate_nodes(NUM_NODES, GENERATION_SEED);
     cout << "Beginning HNSW construction" << endl;
 
     HNSW* hnsw = new HNSW(nodes);
@@ -312,19 +328,44 @@ int main() {
     }
     
     // Generate NUM_QUERIES amount of nodes
-    Node** queries = generate_nodes(NUM_QUERIES);
+    Node** queries = generate_nodes(NUM_QUERIES, GRAPH_SEED);
     cout << "Beginning search" << endl;
+    vector<int>* paths = new vector<int>[NUM_QUERIES];
+    ofstream file("runs/queries.txt");
 
     for (int i = 0; i < NUM_QUERIES; ++i) {
         Node* query = queries[i];
-        deque<Node*> found = nn_search(hnsw, query, NUM_RETURN, EF_CONSTRUCTION);
+        deque<Node*> found = nn_search(hnsw, query, NUM_RETURN, EF_CONSTRUCTION, paths[i]);
 
         // Print out found
-        cout << "Found " << found.size() << " nearest neighbors of node " << query->index << ": ";
+        cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
+        for (int dim = 1; dim < DIMENSIONS; ++dim)
+            cout << " " << query->values[dim];
+        cout << "] : ";
         for (Node* node : found)
             cout << node->index << " ";
         cout << endl;
+
+        // Print path
+        cout << "Path taken: ";
+        for (int path : paths[i])
+            cout << path << " ";
+        cout << endl;
+
+        if (EXPORT_QUERIES) {
+            file << "Query " << i << endl << query->values[0];
+            for (int dim = 1; dim < DIMENSIONS; ++dim)
+                file << "," << query->values[dim];
+            file << endl;
+            for (Node* node : found)
+                file << node->index << ",";
+            file << endl;
+            for (int node : paths[i])
+                file << node << ",";
+            file << endl;
+        }
     }
+    file.close();
 
     if (EXPORT_GRAPH) {
         auto level_comp = [](Node* a, Node* b) {
@@ -343,12 +384,9 @@ int main() {
             skipped = false;
             file << "Level " << level << endl;
             for (int i = start_loc; i < nodes_vec.size(); ++i) {
-                file << nodes_vec[i]->index << ": ";
-                for (int dim = 0; dim < DIMENSIONS; dim++) {
-                    file << nodes_vec[i]->values[dim];
-                    if (dim != DIMENSIONS - 1)
-                        file << ",";
-                }
+                file << nodes_vec[i]->index << ": " << nodes_vec[i]->values[0];
+                for (int dim = 1; dim < DIMENSIONS; ++dim)
+                    file << "," << nodes_vec[i]->values[dim];
                 file << endl;
 
                 if (!skipped && nodes_vec[i]->level > level) {
