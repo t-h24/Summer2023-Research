@@ -10,10 +10,10 @@
 using namespace std;
 
 const int DIMENSIONS = 2;
-const int NUM_NODES = 200;
-const int OPTIMAL_CONNECTIONS = 15;
-const int MAX_CONNECTIONS = 30;
-const int EF_CONSTRUCTION = 30;
+const int NUM_NODES = 20;
+const int OPTIMAL_CONNECTIONS = 3;
+const int MAX_CONNECTIONS = 5;
+const int EF_CONSTRUCTION = 7;
 const double SCALING_FACTOR = 0.5;
 
 const int NUM_QUERIES = 10;
@@ -334,6 +334,8 @@ int main() {
         sort(nodes_vec.begin(), nodes_vec.end(), level_comp);
         ofstream file("runs/graph.txt");
 
+        // Export nodes
+        file << "Nodes" << endl;
         int start_loc = 0;
         bool skipped = false;
         // Each level contains its nodes and all nodes from higher levels
@@ -341,6 +343,7 @@ int main() {
             skipped = false;
             file << "Level " << level << endl;
             for (int i = start_loc; i < nodes_vec.size(); ++i) {
+                file << nodes_vec[i]->index << ": ";
                 for (int dim = 0; dim < DIMENSIONS; dim++) {
                     file << nodes_vec[i]->values[dim];
                     if (dim != DIMENSIONS - 1)
@@ -352,6 +355,23 @@ int main() {
                     start_loc = i;
                     skipped = true;
                 }
+            }
+        }
+
+        // Export edges
+        file << "Edges" << endl;
+        for (int level = 0; level < hnsw->get_layers(); ++level) {
+            file << "Level " << level << endl;
+            HNSWLayer* layer = hnsw->layers[level];
+
+            // Append neighbors of each node in a single line
+            for (int i = 0; i < nodes_vec.size(); ++i) {
+                if (layer->mappings[i].empty())
+                    continue;
+                file << i << ":";
+                for (Node* neighbor : layer->mappings[i])
+                    file << neighbor->index << ",";
+                file << endl;
             }
         }
     }
