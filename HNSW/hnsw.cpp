@@ -29,7 +29,7 @@ const bool DEBUG_SEARCH = false;
 const bool EXPORT_GRAPH = true;
 const bool EXPORT_QUERIES = true;
 
-const int DEBUG_QUERY_SEARCH_INDEX = -1;
+const int DEBUG_QUERY_SEARCH_INDEX = 3;
 
 class Node {
 public:
@@ -184,30 +184,30 @@ deque<Node*> search_layer(HNSW* hnsw, Node* query, deque<Node*> entry_points, in
         found.push(entry_point);
     }
 
-    int iterations = 0;
+    int iteration = 0;
     while (candidates.size() > 0) {
         if (query->debug_file != NULL && layer_num == 0) {
             // Export search data
-            *query->debug_file << "Iteration " << iterations << endl;
+            *query->debug_file << "Iteration " << iteration << endl;
             for (int index : visited)
-                *query->debug_file << index << " ";
+                *query->debug_file << index << ",";
             *query->debug_file << endl;
 
             priority_queue<Node*, deque<Node*>, decltype(close_dist_comp)> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
-                *query->debug_file << temp_candidates.top()->index << " ";
+                *query->debug_file << temp_candidates.top()->index << ",";
                 temp_candidates.pop();
             }
             *query->debug_file << endl;
 
             priority_queue<Node*, deque<Node*>, decltype(far_dist_comp)> temp_found(found);
             while (!temp_found.empty()) {
-                *query->debug_file << temp_found.top()->index << " ";
+                *query->debug_file << temp_found.top()->index << ",";
                 temp_found.pop();
             }
             *query->debug_file << endl;
         }
-        ++iterations;
+        ++iteration;
 
         // Get and remove closest element in candiates to query
         Node* closest = candidates.top();
