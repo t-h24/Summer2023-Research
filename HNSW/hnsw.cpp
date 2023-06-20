@@ -29,11 +29,14 @@ const bool DEBUG_SEARCH = false;
 const bool EXPORT_GRAPH = true;
 const bool EXPORT_QUERIES = true;
 
+const int DEBUG_QUERY_SEARCH_INDEX = -1;
+
 class Node {
 public:
     int index;
     int level;
     float values[DIMENSIONS];
+    ofstream* debug_file;
 
     Node(int index, float values[DIMENSIONS]) : index(index) {
         for (int i = 0; i < DIMENSIONS; i++) {
@@ -181,7 +184,31 @@ deque<Node*> search_layer(HNSW* hnsw, Node* query, deque<Node*> entry_points, in
         found.push(entry_point);
     }
 
+    int iterations = 0;
     while (candidates.size() > 0) {
+        if (query->debug_file != NULL && layer_num == 0) {
+            // Export search data
+            *query->debug_file << "Iteration " << iterations << endl;
+            for (int index : visited)
+                *query->debug_file << index << " ";
+            *query->debug_file << endl;
+
+            priority_queue<Node*, deque<Node*>, decltype(close_dist_comp)> temp_candidates(candidates);
+            while (!temp_candidates.empty()) {
+                *query->debug_file << temp_candidates.top()->index << " ";
+                temp_candidates.pop();
+            }
+            *query->debug_file << endl;
+
+            priority_queue<Node*, deque<Node*>, decltype(far_dist_comp)> temp_found(found);
+            while (!temp_found.empty()) {
+                *query->debug_file << temp_found.top()->index << " ";
+                temp_found.pop();
+            }
+            *query->debug_file << endl;
+        }
+        ++iterations;
+
         // Get and remove closest element in candiates to query
         Node* closest = candidates.top();
         candidates.pop();
@@ -332,6 +359,10 @@ int main() {
     cout << "Beginning search" << endl;
     vector<int>* paths = new vector<int>[NUM_QUERIES];
     ofstream file("runs/queries.txt");
+    if (DEBUG_QUERY_SEARCH_INDEX >= 0) {
+        ofstream* debug_file = new ofstream("runs/query_search.txt");
+        queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file = debug_file;
+    }
 
     for (int i = 0; i < NUM_QUERIES; ++i) {
         Node* query = queries[i];
@@ -366,6 +397,11 @@ int main() {
         }
     }
     file.close();
+
+    if (DEBUG_QUERY_SEARCH_INDEX >= 0) {
+       queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file->close();
+       delete queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file;
+    }
 
     if (EXPORT_GRAPH) {
         auto level_comp = [](Node* a, Node* b) {
