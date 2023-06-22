@@ -1,95 +1,46 @@
 #include <iostream>
-#include <vector>
-#include <map>
 #include <math.h>
 #include <algorithm>
 #include <queue>
 #include <set>
-#include <fstream>
+#include "hnsw.h"
 
 using namespace std;
 
-class Config {
-public:
-    int generation_seed = 0;
-    int graph_seed = 100000;
-
-    int dimensions = 2;
-    int num_nodes = 40;
-    int optimal_connections = 3;
-    int max_connections = 6;
-    int ef_construction = 8;
-    double scaling_factor = 0.5;
-
-    int num_queries = 10;
-    int num_return = 5;
-
-    bool debug_insert = false;
-    bool debug_graph = false;
-    bool debug_search = false;
-
-    bool export_graph = true;
-    bool export_queries = true;
-
-    int debug_query_search_index = -1;
-};
-
-class Node {
-public:
-    int index;
-    int dimensions;
-    int level;
-    float* values;
-    ofstream* debug_file;
-
-    Node(int index, int dimensions, float* values) : index(index), dimensions(dimensions),
-        values(new float[dimensions]), debug_file(NULL) {
-        for (int i = 0; i < dimensions; i++) {
-            this->values[i] = values[i];
-        }
+Node::Node(int index, int dimensions, float* values) : index(index), dimensions(dimensions), 
+    values(new float[dimensions]), debug_file(NULL) {
+    for (int i = 0; i < dimensions; i++) {
+        this->values[i] = values[i];
     }
+}
 
-    double distance(Node* other) {
-        double sum = 0;
-        for (int i = 0; i < dimensions; i++) {
-            sum += pow(this->values[i] - other->values[i], 2);
-        }
-        return sum;
+double Node::distance(Node* other) {
+    double sum = 0;
+    for (int i = 0; i < dimensions; i++) {
+        sum += pow(this->values[i] - other->values[i], 2);
     }
+    return sum;
+}
 
-    ~Node() {
-        delete[] values;
+Node::~Node() {
+    delete[] values;
+}
+
+HNSW::HNSW(int node_size, Node** nodes) : node_size(node_size), nodes(nodes) {}
+
+int HNSW::get_layers() {
+    return layers.size();
+}
+
+HNSW::~HNSW() {
+    for (int i = 0; i < layers.size(); i++) {
+        delete layers[i];
     }
-};
-
-class HNSWLayer {
-public:
-    map<int, deque<Node*>> mappings;
-};
-
-class HNSW {
-public:
-    int node_size;
-    Node** nodes;
-    vector<HNSWLayer*> layers;
-    Node* entry_point;
-
-    HNSW(int node_size, Node** nodes) : node_size(node_size), nodes(nodes) {}
-
-    int get_layers() {
-        return layers.size();
+    for (int i = 0; i < node_size; i++) {
+        delete nodes[i];
     }
-
-    ~HNSW() {
-        for (int i = 0; i < layers.size(); i++) {
-            delete layers[i];
-        }
-        for (int i = 0; i < node_size; i++) {
-            delete nodes[i];
-        }
-        delete[] nodes;
-    }
-};
+    delete[] nodes;
+}
 
 Node** generate_nodes(int dimensions, int amount, int seed) {
     // Pre-set seed (consistent outputs)
@@ -105,10 +56,6 @@ Node** generate_nodes(int dimensions, int amount, int seed) {
 
     return nodes;
 }
-
-HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor);
-deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num);
-deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop);
 
 /**
  * Alg 1
