@@ -16,9 +16,9 @@ public:
 
     int dimensions = 2;
     int num_nodes = 40;
-    int optimal_connections = 2;
-    int max_connections = 3;
-    int ef_construction = 40;
+    int optimal_connections = 3;
+    int max_connections = 6;
+    int ef_construction = 8;
     double scaling_factor = 0.5;
 
     int num_queries = 10;
@@ -31,7 +31,7 @@ public:
     bool export_graph = true;
     bool export_queries = true;
 
-    int debug_query_search_index = 3;
+    int debug_query_search_index = -1;
 };
 
 class Node {
@@ -344,32 +344,25 @@ bool sanity_checks(Config* config) {
     return true;
 }
 
-int main() {
-    Config* config = new Config();
-
-    // Sanity checks
-    if(!sanity_checks(config))
-        return 1;
-
-    // Generate NUM_NODES amount of nodes
-    Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
-    cout << "Beginning HNSW construction" << endl;
-
+HNSW* init_hnsw(Config* config, Node** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->layers.push_back(new HNSWLayer());
 
     // Insert first node into first layer with no connections (empy deque is inserted)
     hnsw->layers[0]->mappings.insert(pair<int, deque<Node*>>(0, deque<Node*>()));
     hnsw->entry_point = nodes[0];
+    return hnsw;
+}
 
-    // Insert nodes
+void insert_nodes(Config* config, Node** nodes, HNSW* hnsw) {
     double normal_factor = 1 / -log(config->scaling_factor);
     for (int i = 1; i < config->num_nodes; i++) {
         Node* query = nodes[i];
         insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction, normal_factor);
     }
+}
 
-    // Print results
+void print_hnsw(Config* config, HNSW* hnsw) {
     if (config->debug_graph) {
         for (int i = hnsw->layers.size() - 1; i >= 0; i--) {
             cout << "Layer " << i << " connections: " << endl;
@@ -381,16 +374,11 @@ int main() {
             }
         }
     }
-    
-    // Generate NUM_QUERIES amount of nodes
-    Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
-    cout << "Beginning search" << endl;
+}
+
+void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
     vector<int>* paths = new vector<int>[config->num_queries];
     ofstream file("runs/queries.txt");
-    if (config->debug_query_search_index >= 0) {
-        ofstream* debug_file = new ofstream("runs/query_search.txt");
-        queries[config->debug_query_search_index]->debug_file = debug_file;
-    }
 
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
@@ -426,12 +414,9 @@ int main() {
     }
     file.close();
     delete[] paths;
+}
 
-    if (config->debug_query_search_index >= 0) {
-       queries[config->debug_query_search_index]->debug_file->close();
-       delete queries[config->debug_query_search_index]->debug_file;
-    }
-
+void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
     if (config->export_graph) {
         auto level_comp = [](Node* a, Node* b) {
             return a->level < b->level;
@@ -478,6 +463,45 @@ int main() {
             }
         }
     }
+}
+
+int main() {
+    Config* config = new Config();
+
+    // Sanity checks
+    if(!sanity_checks(config))
+        return 1;
+
+    // Generate NUM_NODES amount of nodes
+    Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
+    cout << "Beginning HNSW construction" << endl;
+
+    // Insert nodes into HNSW
+    HNSW* hnsw = init_hnsw(config, nodes);
+    insert_nodes(config, nodes, hnsw);
+
+    // Print HNSW graph
+    print_hnsw(config, hnsw);
+    
+    // Generate NUM_QUERIES amount of nodes
+    Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
+    cout << "Beginning search" << endl;
+
+    if (config->debug_query_search_index >= 0) {
+        ofstream* debug_file = new ofstream("runs/query_search.txt");
+        queries[config->debug_query_search_index]->debug_file = debug_file;
+    }
+
+    // Run query search and print results
+    run_query_search(config, hnsw, queries);
+
+    if (config->debug_query_search_index >= 0) {
+       queries[config->debug_query_search_index]->debug_file->close();
+       delete queries[config->debug_query_search_index]->debug_file;
+    }
+
+    // Export graph to file
+    export_graph(config, hnsw, nodes);
 
     // Delete queries
     for (int i = 0; i < config->num_queries; ++i)
