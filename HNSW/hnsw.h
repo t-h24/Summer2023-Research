@@ -1,6 +1,7 @@
 #include <vector>
 #include <map>
 #include <fstream>
+#include <queue>
 
 #ifndef HNSW_H
 #define HNSW_H
@@ -75,7 +76,7 @@ std::deque<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_
 // Executing HNSW
 bool sanity_checks(Config* config);
 HNSW* init_hnsw(Config* config, Node** nodes);
-void insert_nodes(Config* config, Node** nodes, HNSW* hnsw);
+void insert_nodes(Config* config, HNSW* hnsw, Node** nodes);
 void print_hnsw(Config* config, HNSW* hnsw);
 void run_query_search(Config* config, HNSW* hnsw, Node** queries);
 void export_graph(Config* config, HNSW* hnsw, Node** nodes);
