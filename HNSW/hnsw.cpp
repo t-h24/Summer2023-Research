@@ -9,47 +9,56 @@
 
 using namespace std;
 
-const int GENERATION_SEED = 0;
-const int GRAPH_SEED = 100000;
+class Config {
+public:
+    int generation_seed = 0;
+    int graph_seed = 100000;
 
-const int DIMENSIONS = 2;
-const int NUM_NODES = 40;
-const int OPTIMAL_CONNECTIONS = 2;
-const int MAX_CONNECTIONS = 3;
-const int EF_CONSTRUCTION = 40;
-const double SCALING_FACTOR = 0.5;
+    int dimensions = 2;
+    int num_nodes = 40;
+    int optimal_connections = 2;
+    int max_connections = 3;
+    int ef_construction = 40;
+    double scaling_factor = 0.5;
 
-const int NUM_QUERIES = 10;
-const int NUM_RETURN = 5;
+    int num_queries = 10;
+    int num_return = 5;
 
-const bool DEBUG_INSERT = false;
-const bool DEBUG_GRAPH = false;
-const bool DEBUG_SEARCH = false;
+    bool debug_insert = false;
+    bool debug_graph = false;
+    bool debug_search = false;
 
-const bool EXPORT_GRAPH = true;
-const bool EXPORT_QUERIES = true;
+    bool export_graph = true;
+    bool export_queries = true;
 
-const int DEBUG_QUERY_SEARCH_INDEX = 3;
+    int debug_query_search_index = 3;
+};
 
 class Node {
 public:
     int index;
+    int dimensions;
     int level;
-    float values[DIMENSIONS];
+    float* values;
     ofstream* debug_file;
 
-    Node(int index, float values[DIMENSIONS]) : index(index) {
-        for (int i = 0; i < DIMENSIONS; i++) {
+    Node(int index, int dimensions, float* values) : index(index), dimensions(dimensions),
+        values(new float[dimensions]), debug_file(NULL) {
+        for (int i = 0; i < dimensions; i++) {
             this->values[i] = values[i];
         }
     }
 
     double distance(Node* other) {
         double sum = 0;
-        for (int i = 0; i < DIMENSIONS; i++) {
+        for (int i = 0; i < dimensions; i++) {
             sum += pow(this->values[i] - other->values[i], 2);
         }
         return sum;
+    }
+
+    ~Node() {
+        delete[] values;
     }
 };
 
@@ -60,41 +69,52 @@ public:
 
 class HNSW {
 public:
+    int node_size;
     Node** nodes;
     vector<HNSWLayer*> layers;
     Node* entry_point;
 
-    HNSW(Node** nodes) : nodes(nodes) {}
+    HNSW(int node_size, Node** nodes) : node_size(node_size), nodes(nodes) {}
 
     int get_layers() {
         return layers.size();
     }
+
+    ~HNSW() {
+        for (int i = 0; i < layers.size(); i++) {
+            delete layers[i];
+        }
+        for (int i = 0; i < node_size; i++) {
+            delete nodes[i];
+        }
+        delete[] nodes;
+    }
 };
 
-Node** generate_nodes(int amount, int seed) {
+Node** generate_nodes(int dimensions, int amount, int seed) {
     // Pre-set seed (consistent outputs)
     srand(seed);
     Node** nodes = new Node*[amount];
     for (int i = 0; i < amount; i++) {
-        float values[DIMENSIONS];
-        for (int j = 0; j < DIMENSIONS; j++) {
+        float values[dimensions];
+        for (int j = 0; j < dimensions; j++) {
             values[j] = (float)rand() / RAND_MAX * 1000;
         }
-        nodes[i] = new Node(i, values);
+        nodes[i] = new Node(i, dimensions, values);
     }
 
     return nodes;
 }
 
-HNSW* insert(HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor);
-deque<Node*> search_layer(HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num);
-deque<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop);
+HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor);
+deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num);
+deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop);
 
 /**
  * Alg 1
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
 */
-HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor) {
+HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor) {
     deque<Node*> found;
     deque<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
@@ -104,13 +124,13 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
     int node_level = -log(random) * normal_factor;
     query->level = node_level;
 
-    if (DEBUG_INSERT)
+    if (config->debug_insert)
         cout << "Inserting node " << query->index << " at level " << node_level << " with entry point " << entry_points[0]->index << endl;
 
     // Add layers if needed
     if (node_level > top)
         for (int i = top + 1; i <= node_level; i++) {
-            if (DEBUG_INSERT)
+            if (config->debug_insert)
                 cout << "Adding layer " << i << endl;
 
             HNSWLayer* layer = new HNSWLayer();
@@ -119,19 +139,19 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
 
     // Get closest element by using search_layer to find the closest point at each level
     for (int level = top; level >= node_level + 1; level--) {
-        found = search_layer(hnsw, query, entry_points, 1, level);
+        found = search_layer(config, hnsw, query, entry_points, 1, level);
         entry_points = found;
 
-        if (DEBUG_INSERT)
+        if (config->debug_insert)
             cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
     }
 
     for (int level = min(top, node_level); level >= 0; level--) {
         // Get nearest elements
-        found = search_layer(hnsw, query, entry_points, ef_con, level);
-        deque<Node*> neighbors = select_neighbors_simple(hnsw, query, found, opt_con, false);
+        found = search_layer(config, hnsw, query, entry_points, ef_con, level);
+        deque<Node*> neighbors = select_neighbors_simple(config, hnsw, query, found, opt_con, false);
 
-        if (DEBUG_INSERT) {
+        if (config->debug_insert) {
             cout << "Neighbors at level " << level << " are ";
             for (Node* neighbor : neighbors)
                 cout << neighbor->index << " ";
@@ -148,7 +168,7 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
         // Trim neighbor connections if needed
         for (Node* neighbor : neighbors) {
             if (hnsw->layers[level]->mappings[neighbor->index].size() > max_con) {
-                deque<Node*> trimmed = select_neighbors_simple(hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
+                deque<Node*> trimmed = select_neighbors_simple(config, hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
                 hnsw->layers[level]->mappings[neighbor->index] = trimmed;
             }
         }
@@ -166,7 +186,7 @@ HNSW* insert(HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, floa
  * Alg 2
  * SEARCH-LAYER(hnsw, q, ep, ef, lc)
 */
-deque<Node*> search_layer(HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num) {
+deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num) {
     auto close_dist_comp = [query](Node* a, Node* b) {	
         return query->distance(a) > query->distance(b);	
     };
@@ -258,7 +278,7 @@ deque<Node*> search_layer(HNSW* hnsw, Node* query, deque<Node*> entry_points, in
  * SELECT-NEIGHBORS-SIMPLE(hnsw, q, C, M)
  * Extra argument: drop (for debugging)
 */
-deque<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop) {
+deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop) {
     if (candidates.size() <= num)
         return candidates;
 
@@ -274,7 +294,7 @@ deque<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, deque<Node*> candi
         queue.pop();
     }
 
-    if (DEBUG_INSERT && drop) {
+    if (config->debug_insert && drop) {
         cout << "Dropped neighbors for node " << query->index << " are ";
         while (!queue.empty()) {
             cout << queue.top()->index << " ";
@@ -290,44 +310,52 @@ deque<Node*> select_neighbors_simple(HNSW* hnsw, Node* query, deque<Node*> candi
  * K-NN-SEARCH(hnsw, q, K, ef)
  * Extra argument: path (for traversal debugging)
 */
-deque<Node*> nn_search(HNSW* hnsw, Node* query, int num_to_return, int ef_con, vector<int>& path) {
+deque<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, vector<int>& path) {
     deque<Node*> found;
     deque<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
 
-    if (DEBUG_SEARCH)
+    if (config->debug_search)
         cout << "Searching for " << num_to_return << " nearest neighbors of node " << query->index << endl;
 
     // Get closest element by using search_layer to find the closest point at each level
     for (int level = top; level >= 1; level--) {
-        found = search_layer(hnsw, query, entry_points, 1, level);
+        found = search_layer(config, hnsw, query, entry_points, 1, level);
         entry_points = found;
         path.push_back(found[0]->index);
 
-        if (DEBUG_SEARCH)
+        if (config->debug_search)
             cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
     }
 
-    found = search_layer(hnsw, query, entry_points, ef_con, 0);
-    return select_neighbors_simple(hnsw, query, found, num_to_return, false);
+    found = search_layer(config, hnsw, query, entry_points, ef_con, 0);
+    return select_neighbors_simple(config, hnsw, query, found, num_to_return, false);
+}
+
+bool sanity_checks(Config* config) {
+    if (config->optimal_connections > config->max_connections) {
+        cout << "Optimal connections cannot be greater than max connections" << endl;
+        return false;
+    }
+    if (config->ef_construction < config->max_connections) {
+        cout << "Max connections must be less than beam width" << endl;
+        return false;
+    }
+    return true;
 }
 
 int main() {
+    Config* config = new Config();
+
     // Sanity checks
-    if (OPTIMAL_CONNECTIONS > MAX_CONNECTIONS) {
-        cout << "Optimal connections cannot be greater than max connections" << endl;
+    if(!sanity_checks(config))
         return 1;
-    }
-    if (EF_CONSTRUCTION < MAX_CONNECTIONS) {
-        cout << "Max connections must be less than beam width" << endl;
-        return 1;
-    }
 
     // Generate NUM_NODES amount of nodes
-    Node** nodes = generate_nodes(NUM_NODES, GENERATION_SEED);
+    Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
     cout << "Beginning HNSW construction" << endl;
 
-    HNSW* hnsw = new HNSW(nodes);
+    HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->layers.push_back(new HNSWLayer());
 
     // Insert first node into first layer with no connections (empy deque is inserted)
@@ -335,14 +363,14 @@ int main() {
     hnsw->entry_point = nodes[0];
 
     // Insert nodes
-    double normal_factor = 1 / -log(SCALING_FACTOR);
-    for (int i = 1; i < NUM_NODES; i++) {
+    double normal_factor = 1 / -log(config->scaling_factor);
+    for (int i = 1; i < config->num_nodes; i++) {
         Node* query = nodes[i];
-        insert(hnsw, query, OPTIMAL_CONNECTIONS, MAX_CONNECTIONS, EF_CONSTRUCTION, normal_factor);
+        insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction, normal_factor);
     }
 
     // Print results
-    if (DEBUG_GRAPH) {
+    if (config->debug_graph) {
         for (int i = hnsw->layers.size() - 1; i >= 0; i--) {
             cout << "Layer " << i << " connections: " << endl;
             for (auto const& mapping : hnsw->layers[i]->mappings) {
@@ -355,22 +383,22 @@ int main() {
     }
     
     // Generate NUM_QUERIES amount of nodes
-    Node** queries = generate_nodes(NUM_QUERIES, GRAPH_SEED);
+    Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
     cout << "Beginning search" << endl;
-    vector<int>* paths = new vector<int>[NUM_QUERIES];
+    vector<int>* paths = new vector<int>[config->num_queries];
     ofstream file("runs/queries.txt");
-    if (DEBUG_QUERY_SEARCH_INDEX >= 0) {
+    if (config->debug_query_search_index >= 0) {
         ofstream* debug_file = new ofstream("runs/query_search.txt");
-        queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file = debug_file;
+        queries[config->debug_query_search_index]->debug_file = debug_file;
     }
 
-    for (int i = 0; i < NUM_QUERIES; ++i) {
+    for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        deque<Node*> found = nn_search(hnsw, query, NUM_RETURN, EF_CONSTRUCTION, paths[i]);
+        deque<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
 
         // Print out found
         cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
-        for (int dim = 1; dim < DIMENSIONS; ++dim)
+        for (int dim = 1; dim < config->dimensions; ++dim)
             cout << " " << query->values[dim];
         cout << "] : ";
         for (Node* node : found)
@@ -383,9 +411,9 @@ int main() {
             cout << path << " ";
         cout << endl;
 
-        if (EXPORT_QUERIES) {
+        if (config->export_queries) {
             file << "Query " << i << endl << query->values[0];
-            for (int dim = 1; dim < DIMENSIONS; ++dim)
+            for (int dim = 1; dim < config->dimensions; ++dim)
                 file << "," << query->values[dim];
             file << endl;
             for (Node* node : found)
@@ -397,17 +425,18 @@ int main() {
         }
     }
     file.close();
+    delete[] paths;
 
-    if (DEBUG_QUERY_SEARCH_INDEX >= 0) {
-       queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file->close();
-       delete queries[DEBUG_QUERY_SEARCH_INDEX]->debug_file;
+    if (config->debug_query_search_index >= 0) {
+       queries[config->debug_query_search_index]->debug_file->close();
+       delete queries[config->debug_query_search_index]->debug_file;
     }
 
-    if (EXPORT_GRAPH) {
+    if (config->export_graph) {
         auto level_comp = [](Node* a, Node* b) {
             return a->level < b->level;
         };
-        vector<Node*> nodes_vec(nodes, nodes + NUM_NODES);
+        vector<Node*> nodes_vec(nodes, nodes + config->num_nodes);
         sort(nodes_vec.begin(), nodes_vec.end(), level_comp);
         ofstream file("runs/graph.txt");
 
@@ -421,7 +450,7 @@ int main() {
             file << "Level " << level << endl;
             for (int i = start_loc; i < nodes_vec.size(); ++i) {
                 file << nodes_vec[i]->index << ": " << nodes_vec[i]->values[0];
-                for (int dim = 1; dim < DIMENSIONS; ++dim)
+                for (int dim = 1; dim < config->dimensions; ++dim)
                     file << "," << nodes_vec[i]->values[dim];
                 file << endl;
 
@@ -449,5 +478,15 @@ int main() {
             }
         }
     }
+
+    // Delete queries
+    for (int i = 0; i < config->num_queries; ++i)
+        delete queries[i];
+    delete[] queries;
+
+    // Delete hnsw
+    delete hnsw;
+
+    delete config;
     return 0;
 }
