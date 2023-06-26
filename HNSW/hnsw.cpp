@@ -32,13 +32,9 @@ int HNSW::get_layers() {
 }
 
 HNSW::~HNSW() {
-    for (int i = 0; i < layers.size(); i++) {
+    for (size_t i = 0; i < layers.size(); i++) {
         delete layers[i];
     }
-    for (int i = 0; i < node_size; i++) {
-        delete nodes[i];
-    }
-    delete[] nodes;
 }
 
 Node** generate_nodes(int dimensions, int amount, int seed) {
@@ -379,7 +375,7 @@ void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
         for (int level = 0; level < hnsw->get_layers(); ++level) {
             skipped = false;
             file << "Level " << level << endl;
-            for (int i = start_loc; i < nodes_vec.size(); ++i) {
+            for (size_t i = start_loc; i < nodes_vec.size(); ++i) {
                 file << nodes_vec[i]->index << ": " << nodes_vec[i]->values[0];
                 for (int dim = 1; dim < config->dimensions; ++dim)
                     file << "," << nodes_vec[i]->values[dim];
@@ -399,7 +395,7 @@ void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
             HNSWLayer* layer = hnsw->layers[level];
 
             // Append neighbors of each node in a single line
-            for (int i = 0; i < nodes_vec.size(); ++i) {
+            for (size_t i = 0; i < nodes_vec.size(); ++i) {
                 if (layer->mappings[i].empty())
                     continue;
                 file << i << ":";

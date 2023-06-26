@@ -10,7 +10,7 @@ int main() {
     if(!sanity_checks(config))
         return 1;
 
-    // Generate NUM_NODES amount of nodes
+    // Generate num_nodes amount of nodes
     Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
     cout << "Beginning HNSW construction" << endl;
 
@@ -21,7 +21,7 @@ int main() {
     // Print HNSW graph
     print_hnsw(config, hnsw);
     
-    // Generate NUM_QUERIES amount of nodes
+    // Generate num_queries amount of nodes
     Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
     cout << "Beginning search" << endl;
 
@@ -41,14 +41,20 @@ int main() {
     // Export graph to file
     export_graph(config, hnsw, nodes);
 
+    // Delete nodes
+    for (int i = 0; i < config->num_nodes; i++) {
+        delete nodes[i];
+    }
+    delete[] nodes;
+
     // Delete queries
     for (int i = 0; i < config->num_queries; ++i)
         delete queries[i];
     delete[] queries;
 
-    // Delete hnsw
+    // Delete hnsw and config
     delete hnsw;
-
     delete config;
+
     return 0;
 }
