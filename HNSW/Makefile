@@ -3,7 +3,7 @@ CXXFLAGS := -Wall
 
 SRCS := hnsw.cpp run_hnsw.cpp beam_benchmark.cpp
 OBJS := $(SRCS:.cpp=.o)
-TARGETS := beam_benchmark.out hnsw_classic.out
+TARGETS := beam_benchmark.out run_hnsw.out
 
 .PHONY: all clean
 
@@ -12,7 +12,7 @@ all: $(TARGETS)
 beam_benchmark.out: beam_benchmark.cpp hnsw.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-hnsw_classic.out: hnsw.cpp run_hnsw.cpp
+run_hnsw.out: hnsw.cpp run_hnsw.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:
