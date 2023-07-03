@@ -37,7 +37,29 @@ HNSW::~HNSW() {
     }
 }
 
-Node** generate_nodes(int dimensions, int amount, int seed) {
+Node** get_nodes(const string& file, int dimensions, int amount, int seed) {
+    if (file != "") {
+        // Load nodes from file
+        ifstream f(file, ios::in);
+        if (!f) {
+            cout << "File " << file << " not found!" << endl;
+            exit(1);
+        }
+        cout << "Loading nodes from file " << file << endl;
+
+        Node** nodes = new Node*[amount];
+        for (int i = 0; i < amount; i++) {
+            float values[dimensions];
+            for (int j = 0; j < dimensions; j++) {
+                f >> values[j];
+            }
+            nodes[i] = new Node(i, dimensions, values);
+        }
+
+        return nodes;
+    }
+
+    cout << "Generating random nodes" << endl;
     // Pre-set seed (consistent outputs)
     srand(seed);
     Node** nodes = new Node*[amount];
@@ -50,6 +72,59 @@ Node** generate_nodes(int dimensions, int amount, int seed) {
     }
 
     return nodes;
+}
+
+Node** get_queries(const string& file, int dimensions, int amount, int seed, Node** graph_nodes, int num_graph_nodes) {
+    // Pre-set seed (consistent outputs)
+    srand(seed);
+    if (file == "") {
+        // Generate random nodes (same as get_nodes)
+        cout << "Generating random queries" << endl;
+        Node** nodes = new Node*[amount];
+        for (int i = 0; i < amount; i++) {
+            float values[dimensions];
+            for (int j = 0; j < dimensions; j++) {
+                values[j] = (float)rand() / RAND_MAX * 1000;
+            }
+            nodes[i] = new Node(i, dimensions, values);
+        }
+
+        return nodes;
+    }
+    
+    // Generate queries randomly based on bounds of graph_nodes
+    cout << "Generating queries based on file " << file << endl;
+    float* lower_bound = new float[dimensions];
+    float* upper_bound = new float[dimensions];
+    std::copy(graph_nodes[0]->values, graph_nodes[0]->values + dimensions, lower_bound);
+    std::copy(graph_nodes[0]->values, graph_nodes[0]->values + dimensions, upper_bound);
+
+    // Calculate lowest and highest value for each dimension using graph_nodes
+    for (int i = 1; i < num_graph_nodes; i++) {
+        for (int j = 0; j < dimensions; j++) {
+            if (graph_nodes[i]->values[j] < lower_bound[j]) {
+                lower_bound[j] = graph_nodes[i]->values[j];
+            }
+            if (graph_nodes[i]->values[j] > upper_bound[j]) {
+                upper_bound[j] = graph_nodes[i]->values[j];
+            }
+        }
+    }
+
+    // Generate queries based on the range of values in each dimension
+    Node** queries = new Node*[amount];
+    for (int i = 0; i < amount; i++) {
+        float values[dimensions];
+        for (int j = 0; j < dimensions; j++) {
+            values[j] = lower_bound[j] + (float)rand() / RAND_MAX * (upper_bound[j] - lower_bound[j]);
+        }
+        queries[i] = new Node(i, dimensions, values);
+    }
+
+    delete[] lower_bound;
+    delete[] upper_bound;
+
+    return queries;
 }
 
 /**

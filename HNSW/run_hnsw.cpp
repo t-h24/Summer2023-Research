@@ -4,14 +4,17 @@
 using namespace std;
 
 int main() {
+    time_t now = time(NULL);
+    cout << "HNSW run started at " << ctime(&now);
+
     Config* config = new Config();
 
     // Sanity checks
     if(!sanity_checks(config))
         return 1;
 
-    // Generate num_nodes amount of nodes
-    Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
+    // Get num_nodes amount of graph nodes
+    Node** nodes = get_nodes(config->load_file, config->dimensions, config->num_nodes, config->graph_seed);
     cout << "Beginning HNSW construction" << endl;
 
     // Insert nodes into HNSW
@@ -21,8 +24,8 @@ int main() {
     // Print HNSW graph
     print_hnsw(config, hnsw);
     
-    // Generate num_queries amount of nodes
-    Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
+    // Generate num_queries amount of queries
+    Node** queries = get_queries(config->load_file, config->dimensions, config->num_queries, config->query_seed, nodes, config->num_nodes);
     cout << "Beginning search" << endl;
 
     if (config->debug_query_search_index >= 0) {
@@ -55,6 +58,9 @@ int main() {
     // Delete hnsw and config
     delete hnsw;
     delete config;
+
+    now = time(NULL);
+    cout << "HNSW run ended at " << ctime(&now);
 
     return 0;
 }

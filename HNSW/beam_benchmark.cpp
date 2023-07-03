@@ -20,22 +20,19 @@ vector<deque<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries) 
 }
 
 int main() {
+    time_t now = time(0);
+    cout << "Benchmark run started at " << ctime(&now);
+
     Config* config = new Config();
 
     // Setup config
-    config->num_nodes = 5000;
-    config->num_queries = 10;
-    config->num_return = 50;
-    config->optimal_connections = 50;
-    config->max_connections = 100;
-    config->ef_construction = 100;
 
-    // Generate NUM_NODES amount of nodes
-    Node** nodes = generate_nodes(config->dimensions, config->num_nodes, config->generation_seed);
+    // Get num_nodes amount of graph nodes
+    Node** nodes = get_nodes(config->load_file, config->dimensions, config->num_nodes, config->graph_seed);
     cout << "Beginning HNSW construction" << endl;
 
-    // Generate NUM_QUERIES amount of nodes
-    Node** queries = generate_nodes(config->dimensions, config->num_queries, config->graph_seed);
+    // Generate num_queries amount of queries
+    Node** queries = get_queries(config->load_file, config->dimensions, config->num_queries, config->query_seed, nodes, config->num_nodes);
 
     // Generate ef_construction list from config->ef_construction to config->num_nodes
     int EF_CON_SIZE = 1;
@@ -111,4 +108,7 @@ int main() {
 
     // Delete config
     delete config;
+
+    now = time(0);
+    cout << "Benchmark run ended at " << ctime(&now);
 }

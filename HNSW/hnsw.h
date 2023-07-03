@@ -8,14 +8,16 @@
 
 class Config {
 public:
-    int generation_seed = 0;
-    int graph_seed = 100000;
+    std::string load_file = "";
 
-    int dimensions = 2;
-    int num_nodes = 40;
-    int optimal_connections = 3;
-    int max_connections = 6;
-    int ef_construction = 8;
+    int graph_seed = 0;
+    int query_seed = 100000;
+
+    int dimensions = 128;
+    int num_nodes = 10000;
+    int optimal_connections = 20;
+    int max_connections = 40;
+    int ef_construction = 60;
     double scaling_factor = 0.5;
 
     int num_queries = 10;
@@ -65,7 +67,9 @@ public:
     ~HNSW();
 };
 
-Node** generate_nodes(int dimensions, int amount, int seed);
+Node** get_nodes(const std::string& load_file, int dimensions, int amount, int seed);
+
+Node** get_queries(const std::string& load_file, int dimensions, int amount, int seed, Node** graph_nodes, int num_graph_nodes);
 
 // Main algorithms
 HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor);
