@@ -3,6 +3,7 @@
 #include <fstream>
 #include <queue>
 #include <random>
+#include <functional>
 
 #ifndef HNSW_H
 #define HNSW_H
@@ -78,7 +79,7 @@ Node** get_nodes(Config* config);
 Node** get_queries(Config* config, Node** graph_nodes);
 
 // Main algorithms
-HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor, std::mt19937* rand);
+HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor, std::function<double()> rand);
 std::deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, std::deque<Node*> entry_points, int num_to_return, int layer_num);
 std::deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, std::deque<Node*> candidates, int num, bool drop);
 std::deque<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, std::vector<int>& path);

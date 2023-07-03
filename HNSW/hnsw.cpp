@@ -140,15 +140,13 @@ Node** get_queries(Config* config, Node** graph_nodes) {
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
  * Extra arguments: rand (for generating random value between 0 and 1)
 */
-HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor, mt19937* rand) {
+HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor, function<double()> rand) {
     deque<Node*> found;
     deque<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
     
     // Get node level
-    uniform_real_distribution<double> dis(0.0000001, 0.9999999);
-    double random = dis(*rand);
-    int node_level = -log(random) * normal_factor;
+    int node_level = -log(rand()) * normal_factor;
     query->level = node_level;
 
     if (config->debug_insert)
@@ -376,6 +374,7 @@ HNSW* init_hnsw(Config* config, Node** nodes) {
     hnsw->layers.push_back(new HNSWLayer());
 
     // Insert first node into first layer with no connections (empy deque is inserted)
+    nodes[0]->level = 0;
     hnsw->layers[0]->mappings.insert(pair<int, deque<Node*>>(0, deque<Node*>()));
     hnsw->entry_point = nodes[0];
     return hnsw;
@@ -383,11 +382,15 @@ HNSW* init_hnsw(Config* config, Node** nodes) {
 
 void insert_nodes(Config* config, HNSW* hnsw, Node** nodes) {
     mt19937 rand(config->level_seed);
+    uniform_real_distribution<double> dis(0.0000001, 0.9999999);
+
     double normal_factor = 1 / -log(config->scaling_factor);
     for (int i = 1; i < config->num_nodes; i++) {
         Node* query = nodes[i];
         insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction,
-            normal_factor, &rand);
+            normal_factor, [&]() {
+                return dis(rand);
+            });
     }
 }
 
