@@ -37,71 +37,74 @@ HNSW::~HNSW() {
     }
 }
 
-Node** get_nodes(const string& file, int dimensions, int amount, int seed) {
-    if (file != "") {
+Node** get_nodes(Config* config) {
+    if (config->load_file != "") {
         // Load nodes from file
-        ifstream f(file, ios::in);
+        ifstream f(config->load_file, ios::in);
         if (!f) {
-            cout << "File " << file << " not found!" << endl;
+            cout << "File " << config->load_file << " not found!" << endl;
             exit(1);
         }
-        cout << "Loading nodes from file " << file << endl;
+        cout << "Loading nodes from file " << config->load_file << endl;
 
-        Node** nodes = new Node*[amount];
-        for (int i = 0; i < amount; i++) {
-            float values[dimensions];
-            for (int j = 0; j < dimensions; j++) {
+        Node** nodes = new Node*[config->num_nodes];
+        for (int i = 0; i < config->num_nodes; i++) {
+            float values[config->dimensions];
+            for (int j = 0; j < config->dimensions; j++) {
                 f >> values[j];
             }
-            nodes[i] = new Node(i, dimensions, values);
+            nodes[i] = new Node(i, config->dimensions, values);
         }
 
         return nodes;
     }
 
     cout << "Generating random nodes" << endl;
-    // Pre-set seed (consistent outputs)
-    srand(seed);
-    Node** nodes = new Node*[amount];
-    for (int i = 0; i < amount; i++) {
-        float values[dimensions];
-        for (int j = 0; j < dimensions; j++) {
-            values[j] = (float)rand() / RAND_MAX * 1000;
+
+    mt19937 gen(config->graph_seed);
+    uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
+
+    Node** nodes = new Node*[config->num_nodes];
+    for (int i = 0; i < config->num_nodes; i++) {
+        float values[config->dimensions];
+        for (int j = 0; j < config->dimensions; j++) {
+            values[j] = round(dis(gen) * pow(10, config->gen_decimals)) / pow(10, config->gen_decimals);
         }
-        nodes[i] = new Node(i, dimensions, values);
+        nodes[i] = new Node(i, config->dimensions, values);
     }
 
     return nodes;
 }
 
-Node** get_queries(const string& file, int dimensions, int amount, int seed, Node** graph_nodes, int num_graph_nodes) {
-    // Pre-set seed (consistent outputs)
-    srand(seed);
-    if (file == "") {
+Node** get_queries(Config* config, Node** graph_nodes) {
+    mt19937 gen(config->query_seed);
+    if (config->load_file == "") {
         // Generate random nodes (same as get_nodes)
         cout << "Generating random queries" << endl;
-        Node** nodes = new Node*[amount];
-        for (int i = 0; i < amount; i++) {
-            float values[dimensions];
-            for (int j = 0; j < dimensions; j++) {
-                values[j] = (float)rand() / RAND_MAX * 1000;
+        uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
+
+        Node** nodes = new Node*[config->num_queries];
+        for (int i = 0; i < config->num_queries; i++) {
+            float values[config->dimensions];
+            for (int j = 0; j < config->dimensions; j++) {
+                values[j] = round(dis(gen) * pow(10, config->gen_decimals)) / pow(10, config->gen_decimals);
             }
-            nodes[i] = new Node(i, dimensions, values);
+            nodes[i] = new Node(i, config->dimensions, values);
         }
 
         return nodes;
     }
     
     // Generate queries randomly based on bounds of graph_nodes
-    cout << "Generating queries based on file " << file << endl;
-    float* lower_bound = new float[dimensions];
-    float* upper_bound = new float[dimensions];
-    std::copy(graph_nodes[0]->values, graph_nodes[0]->values + dimensions, lower_bound);
-    std::copy(graph_nodes[0]->values, graph_nodes[0]->values + dimensions, upper_bound);
+    cout << "Generating queries based on file " << config->load_file << endl;
+    float* lower_bound = new float[config->dimensions];
+    float* upper_bound = new float[config->dimensions];
+    copy(graph_nodes[0]->values, graph_nodes[0]->values + config->dimensions, lower_bound);
+    copy(graph_nodes[0]->values, graph_nodes[0]->values + config->dimensions, upper_bound);
 
     // Calculate lowest and highest value for each dimension using graph_nodes
-    for (int i = 1; i < num_graph_nodes; i++) {
-        for (int j = 0; j < dimensions; j++) {
+    for (int i = 1; i < config->num_nodes; i++) {
+        for (int j = 0; j < config->dimensions; j++) {
             if (graph_nodes[i]->values[j] < lower_bound[j]) {
                 lower_bound[j] = graph_nodes[i]->values[j];
             }
@@ -110,19 +113,24 @@ Node** get_queries(const string& file, int dimensions, int amount, int seed, Nod
             }
         }
     }
+    uniform_real_distribution<float>* dis_array = new uniform_real_distribution<float>[config->dimensions];
+    for (int i = 0; i < config->dimensions; i++) {
+        dis_array[i] = uniform_real_distribution<float>(lower_bound[i], upper_bound[i]);
+    }
 
     // Generate queries based on the range of values in each dimension
-    Node** queries = new Node*[amount];
-    for (int i = 0; i < amount; i++) {
-        float values[dimensions];
-        for (int j = 0; j < dimensions; j++) {
-            values[j] = lower_bound[j] + (float)rand() / RAND_MAX * (upper_bound[j] - lower_bound[j]);
+    Node** queries = new Node*[config->num_queries];
+    for (int i = 0; i < config->num_queries; i++) {
+        float values[config->dimensions];
+        for (int j = 0; j < config->dimensions; j++) {
+            values[j] = round(dis_array[j](gen) * pow(10, config->gen_decimals)) / pow(10, config->gen_decimals);
         }
-        queries[i] = new Node(i, dimensions, values);
+        queries[i] = new Node(i, config->dimensions, values);
     }
 
     delete[] lower_bound;
     delete[] upper_bound;
+    delete[] dis_array;
 
     return queries;
 }
@@ -130,14 +138,16 @@ Node** get_queries(const string& file, int dimensions, int amount, int seed, Nod
 /**
  * Alg 1
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
+ * Extra arguments: rand (for generating random value between 0 and 1)
 */
-HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor) {
+HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor, mt19937* rand) {
     deque<Node*> found;
     deque<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
     
     // Get node level
-    double random = (double)rand() / RAND_MAX;
+    uniform_real_distribution<double> dis(0.0000001, 0.9999999);
+    double random = dis(*rand);
     int node_level = -log(random) * normal_factor;
     query->level = node_level;
 
@@ -372,10 +382,12 @@ HNSW* init_hnsw(Config* config, Node** nodes) {
 }
 
 void insert_nodes(Config* config, HNSW* hnsw, Node** nodes) {
+    mt19937 rand(config->level_seed);
     double normal_factor = 1 / -log(config->scaling_factor);
     for (int i = 1; i < config->num_nodes; i++) {
         Node* query = nodes[i];
-        insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction, normal_factor);
+        insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction,
+            normal_factor, &rand);
     }
 }
 

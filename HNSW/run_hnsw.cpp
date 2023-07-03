@@ -14,7 +14,7 @@ int main() {
         return 1;
 
     // Get num_nodes amount of graph nodes
-    Node** nodes = get_nodes(config->load_file, config->dimensions, config->num_nodes, config->graph_seed);
+    Node** nodes = get_nodes(config);
     cout << "Beginning HNSW construction" << endl;
 
     // Insert nodes into HNSW
@@ -25,7 +25,7 @@ int main() {
     print_hnsw(config, hnsw);
     
     // Generate num_queries amount of queries
-    Node** queries = get_queries(config->load_file, config->dimensions, config->num_queries, config->query_seed, nodes, config->num_nodes);
+    Node** queries = get_queries(config, nodes);
     cout << "Beginning search" << endl;
 
     if (config->debug_query_search_index >= 0) {
