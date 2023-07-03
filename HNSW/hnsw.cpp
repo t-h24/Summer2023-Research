@@ -410,7 +410,7 @@ void print_hnsw(Config* config, HNSW* hnsw) {
 
 void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
     vector<int>* paths = new vector<int>[config->num_queries];
-    ofstream file("runs/queries.txt");
+    ofstream file(config->export_dir + "queries.txt");
 
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
@@ -455,7 +455,7 @@ void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
         };
         vector<Node*> nodes_vec(nodes, nodes + config->num_nodes);
         sort(nodes_vec.begin(), nodes_vec.end(), level_comp);
-        ofstream file("runs/graph.txt");
+        ofstream file(config->export_dir + "graph.txt");
 
         // Export nodes
         file << "Nodes" << endl;

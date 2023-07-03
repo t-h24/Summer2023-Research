@@ -29,7 +29,7 @@ int main() {
     cout << "Beginning search" << endl;
 
     if (config->debug_query_search_index >= 0) {
-        ofstream* debug_file = new ofstream("runs/query_search.txt");
+        ofstream* debug_file = new ofstream(config->export_dir + "query_search.txt");
         queries[config->debug_query_search_index]->debug_file = debug_file;
     }
 

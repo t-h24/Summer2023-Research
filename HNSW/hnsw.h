@@ -1,3 +1,5 @@
+#pragma once
+
 #include <vector>
 #include <map>
 #include <fstream>
@@ -5,12 +7,10 @@
 #include <random>
 #include <functional>
 
-#ifndef HNSW_H
-#define HNSW_H
-
 class Config {
 public:
     std::string load_file = "";
+    std::string export_dir = "runs/";
 
     int graph_seed = 0;
     int query_seed = 100000;
@@ -22,9 +22,9 @@ public:
 
     int dimensions = 128;
     int num_nodes = 10000;
-    int optimal_connections = 20;
-    int max_connections = 40;
-    int ef_construction = 60;
+    int optimal_connections = 10;
+    int max_connections = 20;
+    int ef_construction = 30;
     double scaling_factor = 0.5;
 
     int num_queries = 10;
@@ -91,5 +91,3 @@ void insert_nodes(Config* config, HNSW* hnsw, Node** nodes);
 void print_hnsw(Config* config, HNSW* hnsw);
 void run_query_search(Config* config, HNSW* hnsw, Node** queries);
 void export_graph(Config* config, HNSW* hnsw, Node** nodes);
-
-#endif
