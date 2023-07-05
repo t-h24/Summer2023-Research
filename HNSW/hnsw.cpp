@@ -230,7 +230,7 @@ vector<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*
     }
 
     int iteration = 0;
-    while (candidates.size() > 0) {
+    while (!candidates.empty()) {
         if (query->debug_file != NULL && layer_num == 0) {
             // Export search data
             *query->debug_file << "Iteration " << iteration << endl;
@@ -291,7 +291,7 @@ vector<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*
     }
 
     vector<Node*> result;
-    while (found.size() > 0) {
+    while (!found.empty()) {
         result.push_back(found.top());
         found.pop();
     }
@@ -373,7 +373,7 @@ HNSW* init_hnsw(Config* config, Node** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->layers.push_back(new HNSWLayer());
 
-    // Insert first node into first layer with no connections (empy vector is inserted)
+    // Insert first node into first layer with no connections (empty vector is inserted)
     nodes[0]->level = 0;
     hnsw->layers[0]->mappings.insert(pair<int, vector<Node*>>(0, vector<Node*>()));
     hnsw->entry_point = nodes[0];
