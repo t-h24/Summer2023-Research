@@ -141,8 +141,8 @@ Node** get_queries(Config* config, Node** graph_nodes) {
  * Extra arguments: rand (for generating random value between 0 and 1)
 */
 HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor, function<double()> rand) {
-    deque<Node*> found;
-    deque<Node*> entry_points = { hnsw->entry_point };
+    vector<Node*> found;
+    vector<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
     
     // Get node level
@@ -174,7 +174,7 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
     for (int level = min(top, node_level); level >= 0; level--) {
         // Get nearest elements
         found = search_layer(config, hnsw, query, entry_points, ef_con, level);
-        deque<Node*> neighbors = select_neighbors_simple(config, hnsw, query, found, opt_con, false);
+        vector<Node*> neighbors = select_neighbors_simple(config, hnsw, query, found, opt_con, false);
 
         if (config->debug_insert) {
             cout << "Neighbors at level " << level << " are ";
@@ -193,7 +193,7 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
         // Trim neighbor connections if needed
         for (Node* neighbor : neighbors) {
             if (hnsw->layers[level]->mappings[neighbor->index].size() > max_con) {
-                deque<Node*> trimmed = select_neighbors_simple(config, hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
+                vector<Node*> trimmed = select_neighbors_simple(config, hnsw, neighbor, hnsw->layers[level]->mappings[neighbor->index], max_con, true);
                 hnsw->layers[level]->mappings[neighbor->index] = trimmed;
             }
         }
@@ -211,7 +211,7 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
  * Alg 2
  * SEARCH-LAYER(hnsw, q, ep, ef, lc)
 */
-deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> entry_points, int num_to_return, int layer_num) {
+vector<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*> entry_points, int num_to_return, int layer_num) {
     auto close_dist_comp = [query](Node* a, Node* b) {	
         return query->distance(a) > query->distance(b);	
     };
@@ -219,8 +219,8 @@ deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> 
         return query->distance(a) < query->distance(b);	
     };
     set<int> visited;
-    priority_queue<Node*, deque<Node*>, decltype(close_dist_comp)> candidates(close_dist_comp);
-    priority_queue<Node*, deque<Node*>, decltype(far_dist_comp)> found(far_dist_comp);
+    priority_queue<Node*, vector<Node*>, decltype(close_dist_comp)> candidates(close_dist_comp);
+    priority_queue<Node*, vector<Node*>, decltype(far_dist_comp)> found(far_dist_comp);
 
     // Add entry points to visited, candidates, and found
     for (Node* entry_point : entry_points) {
@@ -238,14 +238,14 @@ deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> 
                 *query->debug_file << index << ",";
             *query->debug_file << endl;
 
-            priority_queue<Node*, deque<Node*>, decltype(close_dist_comp)> temp_candidates(candidates);
+            priority_queue<Node*, vector<Node*>, decltype(close_dist_comp)> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
                 *query->debug_file << temp_candidates.top()->index << ",";
                 temp_candidates.pop();
             }
             *query->debug_file << endl;
 
-            priority_queue<Node*, deque<Node*>, decltype(far_dist_comp)> temp_found(found);
+            priority_queue<Node*, vector<Node*>, decltype(far_dist_comp)> temp_found(found);
             while (!temp_found.empty()) {
                 *query->debug_file << temp_found.top()->index << ",";
                 temp_found.pop();
@@ -266,7 +266,7 @@ deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> 
             break;
 
         // Get neighbors of closest in HNSWLayer
-        deque<Node*>& neighbors = hnsw->layers[layer_num]->mappings[closest->index];
+        vector<Node*>& neighbors = hnsw->layers[layer_num]->mappings[closest->index];
 
         for (Node* neighbor : neighbors) {
             if (visited.find(neighbor->index) == visited.end()) {
@@ -290,7 +290,7 @@ deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> 
         }
     }
 
-    deque<Node*> result;
+    vector<Node*> result;
     while (found.size() > 0) {
         result.push_back(found.top());
         found.pop();
@@ -303,17 +303,17 @@ deque<Node*> search_layer(Config* config, HNSW* hnsw, Node* query, deque<Node*> 
  * SELECT-NEIGHBORS-SIMPLE(hnsw, q, C, M)
  * Extra argument: drop (for debugging)
 */
-deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, deque<Node*> candidates, int num, bool drop) {
+vector<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, vector<Node*> candidates, int num, bool drop) {
     if (candidates.size() <= num)
         return candidates;
 
     auto dist_comp = [query](Node* a, Node* b) {
         return query->distance(a) > query->distance(b);
     };
-    priority_queue<Node*, deque<Node*>, decltype(dist_comp)> queue(dist_comp, deque<Node*>(candidates.begin(), candidates.end()));
+    priority_queue<Node*, vector<Node*>, decltype(dist_comp)> queue(dist_comp, vector<Node*>(candidates.begin(), candidates.end()));
 
     // Fetch num closest elements
-    deque<Node*> neighbors;
+    vector<Node*> neighbors;
     for (int i = 0; i < num; i++) {
         neighbors.push_back(queue.top());
         queue.pop();
@@ -335,9 +335,9 @@ deque<Node*> select_neighbors_simple(Config* config, HNSW* hnsw, Node* query, de
  * K-NN-SEARCH(hnsw, q, K, ef)
  * Extra argument: path (for traversal debugging)
 */
-deque<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, vector<int>& path) {
-    deque<Node*> found;
-    deque<Node*> entry_points = { hnsw->entry_point };
+vector<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, vector<int>& path) {
+    vector<Node*> found;
+    vector<Node*> entry_points = { hnsw->entry_point };
     int top = hnsw->get_layers() - 1;
 
     if (config->debug_search)
@@ -373,9 +373,9 @@ HNSW* init_hnsw(Config* config, Node** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->layers.push_back(new HNSWLayer());
 
-    // Insert first node into first layer with no connections (empy deque is inserted)
+    // Insert first node into first layer with no connections (empy vector is inserted)
     nodes[0]->level = 0;
-    hnsw->layers[0]->mappings.insert(pair<int, deque<Node*>>(0, deque<Node*>()));
+    hnsw->layers[0]->mappings.insert(pair<int, vector<Node*>>(0, vector<Node*>()));
     hnsw->entry_point = nodes[0];
     return hnsw;
 }
@@ -414,7 +414,7 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
 
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        deque<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
+        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
 
         // Print out found
         cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];

@@ -6,12 +6,12 @@ using namespace std;
 
 const bool PRINT_NEIGHBORS = false;
 
-vector<deque<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
-    vector<deque<Node*>> results;
+vector<vector<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
+    vector<vector<Node*>> results;
     vector<int>* paths = new vector<int>[config->num_queries];
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        deque<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
+        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
         results.push_back(found);
     }
 
@@ -49,7 +49,7 @@ int main() {
     ef_constructions[EF_CON_SIZE - 1] = config->num_nodes;
 
     // Run HNSW with different ef_construction values
-    vector<deque<Node*>> neighbors[EF_CON_SIZE];
+    vector<vector<Node*>> neighbors[EF_CON_SIZE];
     for (int i = 0; i < EF_CON_SIZE; ++i) {
         config->ef_construction = ef_constructions[i];
 
@@ -66,7 +66,7 @@ int main() {
 
         // Run query search for EF_CONSTRUCTION changes
         cout << "Searching with ef_construction = " << ef_constructions[i] << endl;
-        vector<deque<Node*>> results = return_queries(config, hnsw, queries);
+        vector<vector<Node*>> results = return_queries(config, hnsw, queries);
         neighbors[i] = results;
 
         delete hnsw;
@@ -76,7 +76,7 @@ int main() {
     for (int i = 0; i < EF_CON_SIZE - 1; ++i) {
         int differences = 0;
         for (int j = 0; j < config->num_queries; ++j) {
-            deque<Node*> intersection;
+            vector<Node*> intersection;
             set_intersection(neighbors[i][j].begin(), neighbors[i][j].end(),
                 neighbors[EF_CON_SIZE - 1][j].begin(), neighbors[EF_CON_SIZE - 1][j].end(), back_inserter(intersection));
             differences += neighbors[i][j].size() - intersection.size();
