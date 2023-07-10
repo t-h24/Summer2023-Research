@@ -209,34 +209,11 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
             // Place query in correct position in neighbor_mapping
             auto pos = lower_bound(neighbor_mapping->begin(), neighbor_mapping->end(), query, dist_comp);
             neighbor_mapping->insert(pos, query);
-
-            // SANITY: Correct ordering of neighbor_mapping
-            for (int i = 0; i < neighbor_mapping->size() - 1; i++) {
-                if (neighbor->distance(neighbor_mapping->at(i)) > neighbor->distance(neighbor_mapping->at(i + 1))) {
-                    cout << "ERROR: Neighbor " << neighbor->index << " is not sorted correctly" << endl;
-                    exit(1);
-                }
-            }
         }
 
         // Trim neighbor connections if needed
         for (Node* neighbor : *neighbors) {
             if (hnsw->layers[level]->mappings[neighbor->index]->size() > max_con) {
-                // SANITY: Correct ordering of neighbor_mapping
-                for (int i = max_con; i < hnsw->layers[level]->mappings[neighbor->index]->size(); i++) {
-                    if (neighbor->distance(hnsw->layers[level]->mappings[neighbor->index]->at(i)) < neighbor->distance(hnsw->layers[level]->mappings[neighbor->index]->at(i - 1))) {
-                        cout << "ERROR: Neighbor " << neighbor->index << " is not sorted correctly" << endl;
-                        exit(1);
-                    }
-                }
-
-                // SANITY: Size should be max_con + 1
-                if (hnsw->layers[level]->mappings[neighbor->index]->size() != max_con + 1) {
-                    cout << "ERROR: Neighbor " << neighbor->index << " has incorrect number of neighbors" << endl;
-                    exit(1);
-                }
-
-
                 // Pop last element
                 hnsw->layers[level]->mappings[neighbor->index]->pop_back();
             }
@@ -343,14 +320,6 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*>* entry_
         (*entry_points)[idx] = found.top();
         found.pop();
     }
-
-    // SANITY: Correct sorting
-    for (size_t i = 0; i < entry_points->size() - 1; i++) {
-        if (query->distance((*entry_points)[i]) > query->distance((*entry_points)[i + 1])) {
-            cout << "ERROR: Entry points not sorted" << endl;
-            exit(1);
-        }
-    }
 }
 
 /**
@@ -377,14 +346,6 @@ vector<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_retu
     }
 
     search_layer(config, hnsw, query, &entry_points, ef_con, 0);
-    
-    // SANITY: Check if entry points are sorted
-    for (size_t i = 0; i < entry_points.size() - 1; i++) {
-        if (query->distance(entry_points[i]) > query->distance(entry_points[i + 1])) {
-            cout << "Entry points not sorted" << endl;
-            exit(1);
-        }
-    }
 
     // Select closest elements
     entry_points.resize(min(entry_points.size(), (size_t)num_to_return));
