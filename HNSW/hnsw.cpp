@@ -315,7 +315,7 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*>* entry_
     entry_points->resize(found.size());
 
     size_t idx = found.size();
-    while (!found.empty()) {
+    while (idx > 0) {
         --idx;
         (*entry_points)[idx] = found.top();
         found.pop();
@@ -369,9 +369,9 @@ bool sanity_checks(Config* config) {
         config->ef_construction = config->num_nodes;
         cout << "Warning: Beam width was set to " << config->num_nodes << endl;
     }
-    if (config->num_return > config->ef_construction) {
-        config->num_return = config->ef_construction;
-        cout << "Warning: Number of queries to return was set to " << config->ef_construction << endl;
+    if (config->num_return > config->ef_construction_search) {
+        config->num_return = config->ef_construction_search;
+        cout << "Warning: Number of queries to return was set to " << config->ef_construction_search << endl;
     }
     return true;
 }
@@ -421,7 +421,7 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
 
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
+        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
 
         // Print out found
         cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
