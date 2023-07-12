@@ -5,6 +5,7 @@
 using namespace std;
 
 const bool PRINT_NEIGHBORS = false;
+const bool PRINT_MISSING = false;
 
 vector<vector<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
     vector<vector<Node*>> results;
@@ -115,9 +116,14 @@ int main() {
     for (int i = 0; i < SIZE; ++i) {
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
+            Node* query = queries[j];
+            auto comp = [query](Node* a, Node* b) {
+                return query->distance(a) < query->distance(b);
+            };
+
             vector<Node*> intersection;
             set_intersection(neighbors[i][j].begin(), neighbors[i][j].end(),
-                neighbors[SIZE][j].begin(), neighbors[SIZE][j].end(), back_inserter(intersection));
+                neighbors[SIZE][j].begin(), neighbors[SIZE][j].end(), back_inserter(intersection), comp);
             similar += intersection.size();
 
             // Print out neighbors[i][j]
@@ -126,6 +132,21 @@ int main() {
                 for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
                     Node* neighbor = neighbors[i][j][k];
                     cout << neighbor->index << " (" << queries[j]->distance(neighbor) << ") ";
+                }
+                cout << endl;
+            }
+
+            // Print missing neighbors between intersection and neighbors[SIZE][j]
+            if (PRINT_MISSING) {
+                cout << "Missing neighbors for query " << j << " with ef_construction = " << ef_constructions[i] << endl;
+                size_t idx = 0;
+                for (size_t k = 0; k < neighbors[SIZE][j].size(); ++k) {
+                    Node* neighbor = neighbors[SIZE][j][k];
+                    if (idx < intersection.size() && neighbor->index == intersection[idx]->index) {
+                        ++idx;
+                    } else {
+                        cout << neighbor->index << " (" << queries[j]->distance(neighbor) << ") ";
+                    }
                 }
                 cout << endl;
             }

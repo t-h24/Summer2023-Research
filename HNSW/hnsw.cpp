@@ -347,6 +347,13 @@ vector<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_retu
 
     search_layer(config, hnsw, query, &entry_points, ef_con, 0);
 
+    if (config->debug_search) {
+        cout << "All closest points at level 0 are ";
+        for (Node* node : entry_points)
+            cout << node->index << " (" << query->distance(node) << ") ";
+        cout << endl;
+    }
+
     // Select closest elements
     entry_points.resize(min(entry_points.size(), (size_t)num_to_return));
     return entry_points;
@@ -357,8 +364,8 @@ bool sanity_checks(Config* config) {
         cout << "Optimal connections cannot be greater than max connections" << endl;
         return false;
     }
-    if (config->ef_construction < config->max_connections) {
-        cout << "Max connections must be less than beam width" << endl;
+    if (config->optimal_connections > config->ef_construction) {
+        cout << "Opiimal connections cannot be greater than beam width" << endl;
         return false;
     }
     if (config->num_return > config->num_nodes) {
