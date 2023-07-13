@@ -6,6 +6,8 @@
 
 using namespace std;
 
+long long int dist_comps = 0;
+
 Node::Node(int index, int dimensions, float* values) : index(index), dimensions(dimensions), 
     values(new float[dimensions]), debug_file(NULL) {
     for (int i = 0; i < dimensions; i++) {
@@ -14,9 +16,10 @@ Node::Node(int index, int dimensions, float* values) : index(index), dimensions(
 }
 
 double Node::distance(Node* other) {
+    ++dist_comps;
     double sum = 0;
     for (int i = 0; i < dimensions; i++) {
-        sum += pow(this->values[i] - other->values[i], 2);
+        sum += (double)(this->values[i] - other->values[i]) * (double)(this->values[i] - other->values[i]);
     }
     return sum;
 }

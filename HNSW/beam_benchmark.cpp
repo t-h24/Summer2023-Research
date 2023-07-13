@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 #include "hnsw.h"
 
 using namespace std;
@@ -28,7 +29,7 @@ int main() {
 
     // Setup config
     config->num_queries = 100;
-    config->num_return = 50;
+    config->num_return = 20;
 
     // Get num_nodes amount of graph nodes
     Node** nodes = get_nodes(config);
@@ -37,11 +38,11 @@ int main() {
     Node** queries = get_queries(config, nodes);
 
     // Initialize different config values
-    const int SIZE = 5;
-	int optimal_connections[SIZE] = {7, 10, 14, 21, 25};
-    int max_connections[SIZE] = {14, 20, 28, 42, 50};
-    int ef_constructions[SIZE] = {21, 30, 42, 63, 75};
-    int ef_construction_searches[SIZE] = {150, 150, 150, 150, 150};
+    const int SIZE = 3;
+    int optimal_connections[SIZE] = {7, 14, 25};
+    int max_connections[SIZE] = {14, 28, 50};
+    int ef_constructions[SIZE] = {21, 42, 75};
+    int ef_construction_searches[SIZE] = {500, 500, 500};
 
     // Run HNSW with different ef_construction values
     vector<vector<Node*>> neighbors[SIZE + 1];
@@ -50,6 +51,7 @@ int main() {
         config->max_connections = max_connections[i];
         config->ef_construction = ef_constructions[i];
         config->ef_construction_search = ef_construction_searches[i];
+        dist_comps = 0;
 
         // Sanity checks
         if(!sanity_checks(config)) {
@@ -57,20 +59,29 @@ int main() {
             return 1;
         }
 
-        now = time(0);
+        auto start = chrono::high_resolution_clock::now();
 
         // Insert nodes into HNSW
         cout << "Inserting with ef_construction = " << ef_constructions[i] << endl;
         HNSW* hnsw = init_hnsw(config, nodes);
         insert_nodes(config, hnsw, nodes);
 
+        auto end = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+        cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
+        cout << "Distance computations: " << dist_comps << endl;
+        start = chrono::high_resolution_clock::now();
+        dist_comps = 0;
+
         // Run query search for EF_CONSTRUCTION changes
         cout << "Searching with ef_construction = " << ef_constructions[i] << endl;
         vector<vector<Node*>> results = return_queries(config, hnsw, queries);
         neighbors[i] = results;
 
-        time_t after = time(0);
-        cout << "Time elapsed: " << difftime(after, now) << " seconds" << endl;
+        end = chrono::high_resolution_clock::now();
+        duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+        cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
+        cout << "Distance computations: " << dist_comps << endl;
 
         delete hnsw;
     }
@@ -152,7 +163,8 @@ int main() {
             }
         }
 
-        cout << "Similarities between ef_construction = " << ef_constructions[i] << " and optimal: " << similar << endl;
+	    cout << "Similarities between ef_construction = " << ef_constructions[i] << " and optimal: " << similar 
+            << " (" << (double) similar / (config->num_queries * config->num_return) * 100 << "%)" << endl;
     }
 
     // Delete nodes

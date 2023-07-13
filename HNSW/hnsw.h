@@ -7,6 +7,8 @@
 #include <random>
 #include <functional>
 
+extern long long int dist_comps;
+
 class Config {
 public:
     std::string load_file = "";
