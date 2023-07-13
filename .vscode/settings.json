@@ -4,6 +4,7 @@
         "ostream": "cpp",
         "iostream": "cpp",
         "deque": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "chrono": "cpp"
     }
 }

@@ -40,7 +40,8 @@ int main() {
     // Initialize different config values
     const int SIZE = 3;
     int optimal_connections[SIZE] = {7, 14, 25};
-    int max_connections[SIZE] = {14, 28, 50};
+    int max_connections[SIZE] = {11, 18, 30};
+    int max_connections_0[SIZE] = {14, 28, 50};
     int ef_constructions[SIZE] = {21, 42, 75};
     int ef_construction_searches[SIZE] = {500, 500, 500};
 
@@ -49,6 +50,7 @@ int main() {
     for (int i = 0; i < SIZE; ++i) {
         config->optimal_connections = optimal_connections[i];
         config->max_connections = max_connections[i];
+        config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
         config->ef_construction_search = ef_construction_searches[i];
         dist_comps = 0;

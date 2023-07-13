@@ -26,8 +26,9 @@ public:
     int num_nodes = 10000;
     int optimal_connections = 10;
     int max_connections = 20;
+    int max_connections_0 = 20;
     int ef_construction = 30;
-    double scaling_factor = 0.5;
+    double scaling_factor = 0.33;
 
     int ef_construction_search = 50;
     int num_queries = 10;

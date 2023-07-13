@@ -148,6 +148,7 @@ Node** get_queries(Config* config, Node** graph_nodes) {
  * Alg 1
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
  * Extra arguments: rand (for generating random value between 0 and 1)
+ * Note: max_con is not used for level 0, instead max_connections_0 is used
 */
 HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, int ef_con, float normal_factor, function<double()> rand) {
     vector<Node*> entry_points;
@@ -184,6 +185,9 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
     }
 
     for (int level = min(top, node_level); level >= 0; level--) {
+        if (level == 0)
+            max_con = config->max_connections_0;
+
         // Get nearest elements
         search_layer(config, hnsw, query, &entry_points, ef_con, level);
 
