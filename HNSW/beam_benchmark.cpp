@@ -28,6 +28,8 @@ int main() {
     Config* config = new Config();
 
     // Setup config
+    config->export_graph = false;
+    config->export_queries = false;
     config->num_queries = 100;
     config->num_return = 20;
 
@@ -89,6 +91,7 @@ int main() {
     }
 
     // Calcuate actual neighbors per query
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
         neighbors[SIZE].push_back(vector<Node*>());
@@ -124,6 +127,9 @@ int main() {
             cout << endl;
         }
     }
+    auto end = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+    cout << "Brute force time: " << duration / 1000.0 << " seconds" << endl;
 
     // Find differences between different ef_construction values and optimal
     for (int i = 0; i < SIZE; ++i) {

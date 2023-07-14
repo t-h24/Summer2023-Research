@@ -54,7 +54,7 @@ public:
 
     Node(int index, int dimensions, float* values);
 
-    double distance(Node* other);
+    float distance(Node* other);
 
     ~Node();
 };

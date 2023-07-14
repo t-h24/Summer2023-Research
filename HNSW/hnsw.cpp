@@ -2,6 +2,7 @@
 #include <math.h>
 #include <algorithm>
 #include <set>
+#include <immintrin.h>
 #include "hnsw.h"
 
 using namespace std;
@@ -15,13 +16,45 @@ Node::Node(int index, int dimensions, float* values) : index(index), dimensions(
     }
 }
 
-double Node::distance(Node* other) {
-    ++dist_comps;
-    double sum = 0;
-    for (int i = 0; i < dimensions; i++) {
-        sum += (double)(this->values[i] - other->values[i]) * (double)(this->values[i] - other->values[i]);
+float calculate_l2_sq(float* a, float* b, int size) {
+    int parts = size / 8;
+
+    // Initialize result to 0
+    __m256 result = _mm256_setzero_ps();
+
+    // Process 8 floats at a time
+    for (size_t i = 0; i < parts; ++i) {
+        // Load vectors from memory into AVX registers
+        __m256 vec_a = _mm256_loadu_ps(&a[i * 8]);
+        __m256 vec_b = _mm256_loadu_ps(&b[i * 8]);
+
+        // Compute differences and square
+        __m256 diff = _mm256_sub_ps(vec_a, vec_b);
+        __m256 diff_sq = _mm256_mul_ps(diff, diff);
+
+        result = _mm256_add_ps(result, diff_sq);
     }
-    return sum;
+
+    // Process remaining floats
+    float remainder = 0;
+    for (size_t i = parts * 8; i < size; ++i) {
+        float diff = a[i] - b[i];
+        remainder += diff * diff;
+    }
+
+    // Sum all floats in result
+    float sum[8];
+    _mm256_storeu_ps(sum, result);
+    for (size_t i = 1; i < 8; ++i) {
+        sum[0] += sum[i];
+    }
+
+    return sum[0] + remainder;
+}
+
+float Node::distance(Node* other) {
+    ++dist_comps;
+    return calculate_l2_sq(this->values, other->values, this->dimensions);
 }
 
 Node::~Node() {

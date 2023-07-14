@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -O2
+CXXFLAGS := -O2 -mavx
 
 SRCS := hnsw.cpp run_hnsw.cpp beam_benchmark.cpp
 OBJS := $(SRCS:.cpp=.o)
