@@ -491,10 +491,10 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
                 file << "," << query->values[dim];
             file << endl;
             for (Node* node : found)
-                file << node->index << ",";
+                file << node->index << "(" << query->distance(node) << "),";
             file << endl;
             for (int node : paths[i])
-                file << node << ",";
+                file << node << "(" << query->distance(hnsw->nodes[node]) << "),";
             file << endl;
         }
     }

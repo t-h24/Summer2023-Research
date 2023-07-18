@@ -150,7 +150,7 @@ int main() {
 
             vector<Node*> intersection;
             set_intersection(neighbors[i][j].begin(), neighbors[i][j].end(),
-                neighbors[SIZE][j].begin(), neighbors[SIZE][j].end(), back_inserter(intersection), comp);
+                neighbors[SIZE * SEARCH_SIZE][j].begin(), neighbors[SIZE * SEARCH_SIZE][j].end(), back_inserter(intersection), comp);
             similar += intersection.size();
 
             // Print out neighbors[i][j]
@@ -167,8 +167,8 @@ int main() {
             if (PRINT_MISSING) {
                 cout << "Missing neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
                 size_t idx = 0;
-                for (size_t k = 0; k < neighbors[SIZE][j].size(); ++k) {
-                    Node* neighbor = neighbors[SIZE][j][k];
+                for (size_t k = 0; k < neighbors[SIZE * SEARCH_SIZE][j].size(); ++k) {
+                    Node* neighbor = neighbors[SIZE * SEARCH_SIZE][j][k];
                     if (idx < intersection.size() && neighbor->index == intersection[idx]->index) {
                         ++idx;
                     } else {
