@@ -45,16 +45,17 @@ int main() {
     int max_connections[SIZE] = {11, 18, 30};
     int max_connections_0[SIZE] = {14, 28, 50};
     int ef_constructions[SIZE] = {21, 42, 75};
-    int ef_construction_searches[SIZE] = {500, 500, 500};
+
+    const int SEARCH_SIZE = 2;
+    int ef_construction_searches[SEARCH_SIZE] = {300, 500};
 
     // Run HNSW with different ef_construction values
-    vector<vector<Node*>> neighbors[SIZE + 1];
+    vector<vector<Node*>> neighbors[SIZE * SEARCH_SIZE + 1];
     for (int i = 0; i < SIZE; ++i) {
         config->optimal_connections = optimal_connections[i];
         config->max_connections = max_connections[i];
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
-        config->ef_construction_search = ef_construction_searches[i];
         dist_comps = 0;
 
         // Sanity checks
@@ -74,18 +75,22 @@ int main() {
         auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
         cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
         cout << "Distance computations: " << dist_comps << endl;
-        start = chrono::high_resolution_clock::now();
-        dist_comps = 0;
 
-        // Run query search
-        cout << "Searching with ef_construction = " << ef_construction_searches[i] << endl;
-        vector<vector<Node*>> results = return_queries(config, hnsw, queries);
-        neighbors[i] = results;
+        for (int j = 0; j < SEARCH_SIZE; ++j) {
+            config->ef_construction_search = ef_construction_searches[j];
+            start = chrono::high_resolution_clock::now();
+            dist_comps = 0;
 
-        end = chrono::high_resolution_clock::now();
-        duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-        cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-        cout << "Distance computations: " << dist_comps << endl;
+            // Run query search
+            cout << "Searching with ef_construction = " << ef_construction_searches[j] << endl;
+            vector<vector<Node*>> results = return_queries(config, hnsw, queries);
+            neighbors[i * SEARCH_SIZE + j] = results;
+
+            end = chrono::high_resolution_clock::now();
+            duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+            cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
+            cout << "Distance computations: " << dist_comps << endl;
+        }
 
         delete hnsw;
     }
@@ -94,7 +99,7 @@ int main() {
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        neighbors[SIZE].push_back(vector<Node*>());
+        neighbors[SIZE * SEARCH_SIZE].push_back(vector<Node*>());
 
         auto close_dist_comp = [query](Node* a, Node* b) {	
             return query->distance(a) < query->distance(b);	
@@ -108,20 +113,20 @@ int main() {
                 pq.pop();
         }
 
-        neighbors[SIZE][i].reserve(config->num_return);
-        neighbors[SIZE][i].resize(config->num_return);
+        neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
+        neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
         size_t idx = pq.size();
         while (idx > 0) {
             --idx;
-            neighbors[SIZE][i][idx] = pq.top();
+            neighbors[SIZE * SEARCH_SIZE][i][idx] = pq.top();
             pq.pop();
         }
 
         // Print out neighbors[SIZE][i]
         if (PRINT_NEIGHBORS) {
             cout << "Neighbors in ideal case for query " << i << endl;
-            for (size_t j = 0; j < neighbors[SIZE][i].size(); ++j) {
-                Node* neighbor = neighbors[SIZE][i][j];
+            for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
+                Node* neighbor = neighbors[SIZE * SEARCH_SIZE][i][j];
                 cout << neighbor->index << " (" << queries[i]->distance(neighbor) << ") ";
             }
             cout << endl;
@@ -132,7 +137,10 @@ int main() {
     cout << "Brute force time: " << duration / 1000.0 << " seconds" << endl;
 
     // Find differences between different ef_construction values and optimal
-    for (int i = 0; i < SIZE; ++i) {
+    for (int i = 0; i < SIZE * SEARCH_SIZE; ++i) {
+        int ef_con = ef_constructions[i / SEARCH_SIZE];
+        int ef_con_s = ef_construction_searches[i % SEARCH_SIZE];
+
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
             Node* query = queries[j];
@@ -147,7 +155,7 @@ int main() {
 
             // Print out neighbors[i][j]
             if (PRINT_NEIGHBORS) {
-                cout << "Neighbors for query " << j << " with ef_construction = " << ef_constructions[i] << endl;
+                cout << "Neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
                 for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
                     Node* neighbor = neighbors[i][j][k];
                     cout << neighbor->index << " (" << queries[j]->distance(neighbor) << ") ";
@@ -157,7 +165,7 @@ int main() {
 
             // Print missing neighbors between intersection and neighbors[SIZE][j]
             if (PRINT_MISSING) {
-                cout << "Missing neighbors for query " << j << " with ef_construction = " << ef_constructions[i] << endl;
+                cout << "Missing neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
                 size_t idx = 0;
                 for (size_t k = 0; k < neighbors[SIZE][j].size(); ++k) {
                     Node* neighbor = neighbors[SIZE][j][k];
@@ -171,7 +179,7 @@ int main() {
             }
         }
 
-	    cout << "Similarities between ef_construction = " << ef_constructions[i] << " and optimal: " << similar 
+        cout << "Similarities between ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << " and optimal: " << similar 
             << " (" << (double) similar / (config->num_queries * config->num_return) * 100 << "%)" << endl;
     }
 

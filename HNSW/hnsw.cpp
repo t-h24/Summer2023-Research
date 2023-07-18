@@ -214,7 +214,7 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
         search_layer(config, hnsw, query, &entry_points, 1, level);
 
         if (config->debug_insert)
-            cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
+            cout << "Closest point at level " << level << " is " << entry_points[0]->index << " (" << query->distance(entry_points[0]) << ")" << endl;
     }
 
     for (int level = min(top, node_level); level >= 0; level--) {
@@ -235,7 +235,7 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
         if (config->debug_insert) {
             cout << "Neighbors at level " << level << " are ";
             for (Node* neighbor : *neighbors)
-                cout << neighbor->index << " ";
+                cout << neighbor->index << " (" << query->distance(neighbor) << ") ";
             cout << endl;
         }
 
@@ -295,19 +295,19 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<Node*>* entry_
             // Export search data
             *query->debug_file << "Iteration " << iteration << endl;
             for (int index : visited)
-                *query->debug_file << index << ",";
+                *query->debug_file << index << "(" << query->distance(hnsw->nodes[index]) << "),";
             *query->debug_file << endl;
 
             priority_queue<Node*, vector<Node*>, decltype(close_dist_comp)> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
-                *query->debug_file << temp_candidates.top()->index << ",";
+                *query->debug_file << temp_candidates.top()->index << "(" << query->distance(temp_candidates.top()) << "),";
                 temp_candidates.pop();
             }
             *query->debug_file << endl;
 
             priority_queue<Node*, vector<Node*>, decltype(far_dist_comp)> temp_found(found);
             while (!temp_found.empty()) {
-                *query->debug_file << temp_found.top()->index << ",";
+                *query->debug_file << temp_found.top()->index << "(" << query->distance(temp_found.top()) << "),";
                 temp_found.pop();
             }
             *query->debug_file << endl;
@@ -382,7 +382,7 @@ vector<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_retu
         path.push_back(entry_points[0]->index);
 
         if (config->debug_search)
-            cout << "Closest point at level " << level << " is " << entry_points[0]->index << endl;
+            cout << "Closest point at level " << level << " is " << entry_points[0]->index << " (" << query->distance(entry_points[0]) << ")" << endl;
     }
 
     search_layer(config, hnsw, query, &entry_points, ef_con, 0);
