@@ -13,7 +13,7 @@ vector<vector<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries)
     vector<int>* paths = new vector<int>[config->num_queries];
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction, paths[i]);
+        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
         results.push_back(found);
     }
 
@@ -77,8 +77,8 @@ int main() {
         start = chrono::high_resolution_clock::now();
         dist_comps = 0;
 
-        // Run query search for EF_CONSTRUCTION changes
-        cout << "Searching with ef_construction = " << ef_constructions[i] << endl;
+        // Run query search
+        cout << "Searching with ef_construction = " << ef_construction_searches[i] << endl;
         vector<vector<Node*>> results = return_queries(config, hnsw, queries);
         neighbors[i] = results;
 
