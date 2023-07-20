@@ -12,6 +12,7 @@ extern long long int dist_comps;
 class Config {
 public:
     std::string load_file = "";
+    std::string query_file = "";
     std::string export_dir = "runs/";
 
     int graph_seed = 0;

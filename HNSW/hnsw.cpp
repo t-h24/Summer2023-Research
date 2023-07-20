@@ -120,6 +120,27 @@ Node** get_nodes(Config* config) {
 
 Node** get_queries(Config* config, Node** graph_nodes) {
     mt19937 gen(config->query_seed);
+    if (config->query_file != "") {
+        // Load nodes from file
+        ifstream f(config->query_file, ios::in);
+        if (!f) {
+            cout << "File " << config->load_file << " not found!" << endl;
+            exit(1);
+        }
+        cout << "Loading queries from file " << config->load_file << endl;
+
+        Node** nodes = new Node*[config->num_queries];
+        for (int i = 0; i < config->num_queries; i++) {
+            float values[config->dimensions];
+            for (int j = 0; j < config->dimensions; j++) {
+                f >> values[j];
+            }
+            nodes[i] = new Node(i, config->dimensions, values);
+        }
+
+        return nodes;
+    }
+
     if (config->load_file == "") {
         // Generate random nodes (same as get_nodes)
         cout << "Generating random queries" << endl;
