@@ -124,10 +124,10 @@ Node** get_queries(Config* config, Node** graph_nodes) {
         // Load nodes from file
         ifstream f(config->query_file, ios::in);
         if (!f) {
-            cout << "File " << config->load_file << " not found!" << endl;
+            cout << "File " << config->query_file << " not found!" << endl;
             exit(1);
         }
-        cout << "Loading queries from file " << config->load_file << endl;
+        cout << "Loading queries from file " << config->query_file << endl;
 
         Node** nodes = new Node*[config->num_queries];
         for (int i = 0; i < config->num_queries; i++) {
