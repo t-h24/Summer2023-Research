@@ -1,30 +1,32 @@
-import numpy
+import sys
+import numpy as np
 
-def convert_base_file(fvecs_file_name):
+def fvecs_to_vectors(filename):
+    data = np.fromfile(filename, dtype=np.float32)
+    dim = data.view(np.int32)[0]
+    assert len(data) % (dim + 1) == 0
+    num_vectors = len(data) // (dim + 1)
 
-    fv = numpy.fromfile(fvecs_file_name, dtype="float32")
-    dim = fv.view(numpy.int32)[0]
+    vectors = []
+    for i in range(num_vectors):
+        vectors.append(data[(i * (dim + 1) + 1):(i + 1) * (dim + 1)])
+    return vectors
 
-    matrix = []
-
-    for i in range(len(fv)):
-        if i % (dim+1) == 0:
-            vec = []
-            for j in range(1, dim+1):
-                vec.append(fv[i+j])
-            matrix.append(vec)
-
-    newFileName = fvecs_file_name[0:fvecs_file_name.find('.')] + '.txt'
-    f = open(newFileName, 'w')
-
-    for vec in matrix:
+def convert_base_file(filename):
+    vectors = fvecs_to_vectors(filename)
+    file = open(filename.split(".")[0] + ".txt", "w")
+    for item in vectors:
         line = ""
-        for num in vec:
+        for num in item:
             line += str(num)
             line += ' '
-        print(line, file = f)
+        print(line, file=file)
 
 def main():
-    convert_base_file("siftsmall_base.fvecs")
+    if len(sys.argv) < 2:
+        print("Usage: python convert_vec_file.py <filename>")
+        return
+    convert_base_file(sys.argv[1])
 
-main()
+if __name__ == '__main__':
+    main()
