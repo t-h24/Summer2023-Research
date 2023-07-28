@@ -79,8 +79,43 @@ HNSW::~HNSW() {
     }
 }
 
+void load_fvecs(string file, Node** nodes, int num, int dim) {
+    ifstream f(file, ios::binary | ios::in);
+    if (!f) {
+        cout << "File " << file << " not found!" << endl;
+        exit(-1);
+    }
+
+    // Read dimension
+    unsigned read_dim;
+    f.read((char*)&read_dim, 4);
+    if (dim != read_dim) {
+        cout << "Mismatch between expected and actual dimension: " << dim << "!=" << read_dim << endl;
+        exit(-1);
+    }
+
+    f.seekg(0, ios::beg);
+    for (int i = 0; i < num; i++) {
+        // Skip dimension size
+        f.seekg(4, ios::cur);
+
+        // Read point
+        float values[dim];
+        f.read((char *)values, dim * 4);
+        nodes[i] = new Node(i, dim, values);
+    }
+    f.close();
+}
+
 Node** get_nodes(Config* config) {
     if (config->load_file != "") {
+        if (config->load_file.size() >= 6 && config->load_file.substr(config->load_file.size() - 6) == ".fvecs") {
+            // Load nodes from fvecs file
+            Node** nodes = new Node*[config->num_nodes];
+            load_fvecs(config->load_file, nodes, config->num_nodes, config->dimensions);
+            return nodes;
+        }
+    
         // Load nodes from file
         ifstream f(config->load_file, ios::in);
         if (!f) {
@@ -98,6 +133,7 @@ Node** get_nodes(Config* config) {
             nodes[i] = new Node(i, config->dimensions, values);
         }
 
+        f.close();
         return nodes;
     }
 
@@ -121,7 +157,14 @@ Node** get_nodes(Config* config) {
 Node** get_queries(Config* config, Node** graph_nodes) {
     mt19937 gen(config->query_seed);
     if (config->query_file != "") {
-        // Load nodes from file
+        if (config->query_file.size() >= 6 && config->query_file.substr(config->query_file.size() - 6) == ".fvecs") {
+            // Load queries from fvecs file
+            Node** queries = new Node*[config->num_queries];
+            load_fvecs(config->query_file, queries, config->num_queries, config->dimensions);
+            return queries;
+        }
+
+        // Load queries from file
         ifstream f(config->query_file, ios::in);
         if (!f) {
             cout << "File " << config->query_file << " not found!" << endl;
@@ -129,33 +172,34 @@ Node** get_queries(Config* config, Node** graph_nodes) {
         }
         cout << "Loading queries from file " << config->query_file << endl;
 
-        Node** nodes = new Node*[config->num_queries];
+        Node** queries = new Node*[config->num_queries];
         for (int i = 0; i < config->num_queries; i++) {
             float values[config->dimensions];
             for (int j = 0; j < config->dimensions; j++) {
                 f >> values[j];
             }
-            nodes[i] = new Node(i, config->dimensions, values);
+            queries[i] = new Node(i, config->dimensions, values);
         }
 
-        return nodes;
+        f.close();
+        return queries;
     }
 
     if (config->load_file == "") {
-        // Generate random nodes (same as get_nodes)
+        // Generate random queries (same as get_nodes)
         cout << "Generating random queries" << endl;
         uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
 
-        Node** nodes = new Node*[config->num_queries];
+        Node** queries = new Node*[config->num_queries];
         for (int i = 0; i < config->num_queries; i++) {
             float values[config->dimensions];
             for (int j = 0; j < config->dimensions; j++) {
                 values[j] = round(dis(gen) * pow(10, config->gen_decimals)) / pow(10, config->gen_decimals);
             }
-            nodes[i] = new Node(i, config->dimensions, values);
+            queries[i] = new Node(i, config->dimensions, values);
         }
 
-        return nodes;
+        return queries;
     }
     
     // Generate queries randomly based on bounds of graph_nodes
@@ -426,7 +470,7 @@ bool sanity_checks(Config* config) {
         return false;
     }
     if (config->optimal_connections > config->ef_construction) {
-        cout << "Opiimal connections cannot be greater than beam width" << endl;
+        cout << "Optimal connections cannot be greater than beam width" << endl;
         return false;
     }
     if (config->num_return > config->num_nodes) {
@@ -471,6 +515,12 @@ void insert_nodes(Config* config, HNSW* hnsw, Node** nodes) {
 
 void print_hnsw(Config* config, HNSW* hnsw) {
     if (config->debug_graph) {
+        cout << "Nodes per layer: " << endl;
+        for (int i = 0; i < hnsw->get_layers(); i++) {
+            cout << "Level " << i << ": " << hnsw->layers[i]->mappings.size() << endl;
+        }
+        cout << endl;
+
         for (int i = hnsw->layers.size() - 1; i >= 0; i--) {
             cout << "Layer " << i << " connections: " << endl;
             for (auto const& mapping : hnsw->layers[i]->mappings) {
