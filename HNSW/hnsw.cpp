@@ -79,7 +79,7 @@ HNSW::~HNSW() {
     }
 }
 
-void load_fvecs(string file, Node** nodes, int num, int dim) {
+void load_fvecs(const string& file, Node** nodes, int num, int dim) {
     ifstream f(file, ios::binary | ios::in);
     if (!f) {
         cout << "File " << file << " not found!" << endl;
@@ -537,24 +537,71 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
     vector<int>* paths = new vector<int>[config->num_queries];
     ofstream file(config->export_dir + "queries.txt");
 
+    int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
         vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
 
-        // Print out found
-        cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
-        for (int dim = 1; dim < config->dimensions; ++dim)
-            cout << " " << query->values[dim];
-        cout << "] : ";
-        for (Node* node : found)
-            cout << node->index << " ";
-        cout << endl;
+	    if (config->print_results) {
+            // Print out found
+            cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
+            for (int dim = 1; dim < config->dimensions; ++dim)
+                cout << " " << query->values[dim];
+            cout << "] : ";
+            for (Node* node : found)
+                cout << node->index << " ";
+            cout << endl;
+            // Print path
+            cout << "Path taken: ";
+            for (int path : paths[i])
+                cout << path << " ";
+            cout << endl;
+        }
 
-        // Print path
-        cout << "Path taken: ";
-        for (int path : paths[i])
-            cout << path << " ";
-        cout << endl;
+        vector<Node*> actual;
+        if (config->print_actual || config->print_indiv_recalls || config->print_total_recall) {
+            // Get actual nearest neighbors
+            auto dist_comp = [query](Node* a, Node* b) {
+                return query->distance(a) < query->distance(b);
+            };
+            priority_queue<Node*, vector<Node*>, decltype(dist_comp)> pq(dist_comp);
+            for (int j = 0; j < config->num_nodes; ++j) {
+                pq.push(hnsw->nodes[j]);
+                if (pq.size() > config->num_return)
+                    pq.pop();
+            }
+
+            // Place actual nearest neighbors
+            actual.reserve(config->num_return);
+            actual.resize(config->num_return);
+
+            int idx = config->num_return;
+            while (idx > 0) {
+                --idx;
+                actual[idx] = pq.top();
+                pq.pop();
+            }
+
+            if (config->print_actual) {
+                // Print out actual
+                cout << "Actual " << config->num_return << " nearest neighbors of [" << query->values[0];
+                for (int dim = 1; dim < config->dimensions; ++dim)
+                    cout << " " << query->values[dim];
+                cout << "] : ";
+                for (Node* node : actual)
+                    cout << node->index << " ";
+                cout << endl;
+            }
+
+            if (config->print_indiv_recalls || config->print_total_recall) {
+                vector<Node*> intersection;
+                set_intersection(found.begin(), found.end(), actual.begin(), actual.end(), back_inserter(intersection), dist_comp);
+                if (config->print_indiv_recalls)
+                    cout << "Found " << intersection.size() << " (" << intersection.size() /  (double)config->num_return * 100 << "%) for query " << i << endl;
+                if (config->print_total_recall)
+                    total_found += intersection.size();
+            }
+        }
 
         if (config->export_queries) {
             file << "Query " << i << endl << query->values[0];
@@ -569,6 +616,13 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
             file << endl;
         }
     }
+
+    if (config->print_total_recall) {
+        cout << "Total recall: " << total_found / (double)(config->num_queries * config->num_return) * 100 << "%" << endl;
+    }
+
+    cout << "Finished search" << endl;
+
     file.close();
     delete[] paths;
 }

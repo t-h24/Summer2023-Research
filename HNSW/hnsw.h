@@ -11,9 +11,9 @@ extern long long int dist_comps;
 
 class Config {
 public:
-    std::string load_file = "";
-    std::string query_file = "";
-    std::string export_dir = "runs/";
+    const std::string load_file = "";
+    const std::string query_file = "";
+    const std::string export_dir = "runs/";
 
     int graph_seed = 0;
     int query_seed = 100000;
@@ -26,21 +26,26 @@ public:
     int dimensions = 128;
     int num_nodes = 10000;
     int optimal_connections = 10;
-    int max_connections = 20;
+    int max_connections = 15;
     int max_connections_0 = 20;
-    int ef_construction = 30;
-    double scaling_factor = 0.33;
+    int ef_construction = 50;
+    double scaling_factor = 0.368;
 
-    int ef_construction_search = 50;
-    int num_queries = 10;
-    int num_return = 5;
+    int ef_construction_search = 200;
+    int num_queries = 100;
+    int num_return = 20;
+
+    bool print_results = false;
+    bool print_actual = false;
+    bool print_indiv_recalls = false;
+    bool print_total_recall = true;
 
     bool debug_insert = false;
     bool debug_graph = false;
     bool debug_search = false;
 
-    bool export_graph = true;
-    bool export_queries = true;
+    bool export_graph = false;
+    bool export_queries = false;
 
     int debug_query_search_index = -1;
 };
