@@ -8,12 +8,12 @@ using namespace std;
 const bool PRINT_NEIGHBORS = false;
 const bool PRINT_MISSING = false;
 
-vector<vector<Node*>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
-    vector<vector<Node*>> results;
+vector<vector<pair<float, Node*>>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
+    vector<vector<pair<float, Node*>>> results;
     vector<int>* paths = new vector<int>[config->num_queries];
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        vector<Node*> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
+        vector<pair<float, Node*>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
         results.push_back(found);
     }
 
@@ -50,7 +50,7 @@ int main() {
     int ef_construction_searches[SEARCH_SIZE] = {300, 500};
 
     // Run HNSW with different ef_construction values
-    vector<vector<Node*>> neighbors[SIZE * SEARCH_SIZE + 1];
+    vector<vector<pair<float, Node*>>> neighbors[SIZE * SEARCH_SIZE + 1];
     for (int i = 0; i < SIZE; ++i) {
         config->optimal_connections = optimal_connections[i];
         config->max_connections = max_connections[i];
@@ -83,7 +83,7 @@ int main() {
 
             // Run query search
             cout << "Searching with ef_construction = " << ef_construction_searches[j] << endl;
-            vector<vector<Node*>> results = return_queries(config, hnsw, queries);
+            vector<vector<pair<float, Node*>>> results = return_queries(config, hnsw, queries);
             neighbors[i * SEARCH_SIZE + j] = results;
 
             end = chrono::high_resolution_clock::now();
@@ -99,22 +99,19 @@ int main() {
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
-        neighbors[SIZE * SEARCH_SIZE].push_back(vector<Node*>());
-
-        auto close_dist_comp = [query](Node* a, Node* b) {	
-            return query->distance(a) < query->distance(b);	
-        };
-        priority_queue<Node*, vector<Node*>, decltype(close_dist_comp)> pq(close_dist_comp);
+        neighbors[SIZE * SEARCH_SIZE].push_back(vector<pair<float, Node*>>());
+        priority_queue<pair<float, Node*>> pq;
 
         for (int j = 0; j < config->num_nodes; ++j) {
-            pq.push(nodes[j]);
-
+            pq.emplace(query->distance(nodes[j]), nodes[j]);
             if (pq.size() > config->num_return)
                 pq.pop();
         }
 
+        // Place actual nearest neighbors
         neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
         neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
+
         size_t idx = pq.size();
         while (idx > 0) {
             --idx;
@@ -126,8 +123,8 @@ int main() {
         if (PRINT_NEIGHBORS) {
             cout << "Neighbors in ideal case for query " << i << endl;
             for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
-                Node* neighbor = neighbors[SIZE * SEARCH_SIZE][i][j];
-                cout << neighbor->index << " (" << queries[i]->distance(neighbor) << ") ";
+                auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
+                cout << n_pair.second->index << " (" << n_pair.first << ") ";
             }
             cout << endl;
         }
@@ -143,22 +140,17 @@ int main() {
 
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
-            Node* query = queries[j];
-            auto comp = [query](Node* a, Node* b) {
-                return query->distance(a) < query->distance(b);
-            };
-
-            vector<Node*> intersection;
+            vector<pair<float, Node*>> intersection;
             set_intersection(neighbors[i][j].begin(), neighbors[i][j].end(),
-                neighbors[SIZE * SEARCH_SIZE][j].begin(), neighbors[SIZE * SEARCH_SIZE][j].end(), back_inserter(intersection), comp);
+                neighbors[SIZE * SEARCH_SIZE][j].begin(), neighbors[SIZE * SEARCH_SIZE][j].end(), back_inserter(intersection));
             similar += intersection.size();
 
             // Print out neighbors[i][j]
             if (PRINT_NEIGHBORS) {
                 cout << "Neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
                 for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
-                    Node* neighbor = neighbors[i][j][k];
-                    cout << neighbor->index << " (" << queries[j]->distance(neighbor) << ") ";
+                    auto n_pair = neighbors[i][j][k];
+                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
                 }
                 cout << endl;
             }
@@ -168,11 +160,11 @@ int main() {
                 cout << "Missing neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
                 size_t idx = 0;
                 for (size_t k = 0; k < neighbors[SIZE * SEARCH_SIZE][j].size(); ++k) {
-                    Node* neighbor = neighbors[SIZE * SEARCH_SIZE][j][k];
-                    if (idx < intersection.size() && neighbor->index == intersection[idx]->index) {
+                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][j][k];
+                    if (idx < intersection.size() && n_pair.second->index == intersection[idx].second->index) {
                         ++idx;
                     } else {
-                        cout << neighbor->index << " (" << queries[j]->distance(neighbor) << ") ";
+                        cout << n_pair.second->index << " (" << n_pair.first << ") ";
                     }
                 }
                 cout << endl;

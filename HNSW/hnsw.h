@@ -67,7 +67,7 @@ public:
 
 class HNSWLayer {
 public:
-    std::map<int, std::vector<Node*>*> mappings;
+    std::map<int, std::vector<std::pair<float, Node*>>*> mappings;
 
     ~HNSWLayer();
 };
@@ -92,8 +92,8 @@ Node** get_queries(Config* config, Node** graph_nodes);
 
 // Main algorithms
 HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor, std::function<double()> rand);
-void search_layer(Config* config, HNSW* hnsw, Node* query, std::vector<Node*>* entry_points, int num_to_return, int layer_num);
-std::vector<Node*> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, std::vector<int>& path);
+void search_layer(Config* config, HNSW* hnsw, Node* query, std::vector<std::pair<float, Node*>>* entry_points, int num_to_return, int layer_num);
+std::vector<std::pair<float, Node*>> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, std::vector<int>& path);
 
 // Executing HNSW
 bool sanity_checks(Config* config);
