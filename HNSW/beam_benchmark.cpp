@@ -39,6 +39,9 @@ int main() {
     // Generate num_queries amount of queries
     Node** queries = get_queries(config, nodes);
 
+    cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
+    cout << "Search parameters: ef_con_s" << endl;
+
     // Initialize different config values
     const int SIZE = 3;
     int optimal_connections[SIZE] = {7, 14, 25};
@@ -67,7 +70,9 @@ int main() {
         auto start = chrono::high_resolution_clock::now();
 
         // Insert nodes into HNSW
-        cout << "Inserting with ef_construction = " << ef_constructions[i] << endl;
+        cout << "Inserting with construction parameters: "
+            << config->optimal_connections << ", " << config->max_connections << ", "
+            << config->max_connections_0 << ", " << config->ef_construction << endl; 
         HNSW* hnsw = init_hnsw(config, nodes);
         insert_nodes(config, hnsw, nodes);
 
@@ -82,7 +87,7 @@ int main() {
             dist_comps = 0;
 
             // Run query search
-            cout << "Searching with ef_construction = " << ef_construction_searches[j] << endl;
+            cout << "Searching with ef_con_s = " << ef_construction_searches[j] << endl;
             vector<vector<pair<float, Node*>>> results = return_queries(config, hnsw, queries);
             neighbors[i * SEARCH_SIZE + j] = results;
 
@@ -135,8 +140,14 @@ int main() {
 
     // Find differences between different ef_construction values and optimal
     for (int i = 0; i < SIZE * SEARCH_SIZE; ++i) {
+        int opt_con = optimal_connections[i / SEARCH_SIZE];
+        int max_con = max_connections[i / SEARCH_SIZE];
+        int max_con_0 = max_connections_0[i / SEARCH_SIZE];
         int ef_con = ef_constructions[i / SEARCH_SIZE];
         int ef_con_s = ef_construction_searches[i % SEARCH_SIZE];
+
+        cout << "Results for construction parameters: " << opt_con << ", " << max_con << ", "
+            << max_con_0 << ", " << ef_con << " and search parameters: " << ef_con_s << endl;
 
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
@@ -147,7 +158,7 @@ int main() {
 
             // Print out neighbors[i][j]
             if (PRINT_NEIGHBORS) {
-                cout << "Neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
+                cout << "Neighbors for query " << j << ": ";
                 for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
                     auto n_pair = neighbors[i][j][k];
                     cout << n_pair.second->index << " (" << n_pair.first << ") ";
@@ -157,7 +168,7 @@ int main() {
 
             // Print missing neighbors between intersection and neighbors[SIZE][j]
             if (PRINT_MISSING) {
-                cout << "Missing neighbors for query " << j << " with ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << endl;
+                cout << "Missing neighbors for query " << j << ": ";
                 size_t idx = 0;
                 for (size_t k = 0; k < neighbors[SIZE * SEARCH_SIZE][j].size(); ++k) {
                     auto n_pair = neighbors[SIZE * SEARCH_SIZE][j][k];
@@ -171,8 +182,8 @@ int main() {
             }
         }
 
-        cout << "Similarities between ef_con = " << ef_con << ", ef_con_s = " << ef_con_s << " and optimal: " << similar 
-            << " (" << (double) similar / (config->num_queries * config->num_return) * 100 << "%)" << endl;
+        cout << "Correctly found neighbors: " << similar << " ("
+            << (double) similar / (config->num_queries * config->num_return) * 100 << "%)" << endl;
     }
 
     // Delete nodes

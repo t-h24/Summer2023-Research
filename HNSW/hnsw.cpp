@@ -79,12 +79,13 @@ HNSW::~HNSW() {
     }
 }
 
-void load_fvecs(const string& file, Node** nodes, int num, int dim) {
+void load_fvecs(const string& file, const string& type, Node** nodes, int num, int dim) {
     ifstream f(file, ios::binary | ios::in);
     if (!f) {
         cout << "File " << file << " not found!" << endl;
         exit(-1);
     }
+    cout << "Loading " << type << " from file " << file << endl;
 
     // Read dimension
     unsigned read_dim;
@@ -112,7 +113,7 @@ Node** get_nodes(Config* config) {
         if (config->load_file.size() >= 6 && config->load_file.substr(config->load_file.size() - 6) == ".fvecs") {
             // Load nodes from fvecs file
             Node** nodes = new Node*[config->num_nodes];
-            load_fvecs(config->load_file, nodes, config->num_nodes, config->dimensions);
+            load_fvecs(config->load_file, "nodes", nodes, config->num_nodes, config->dimensions);
             return nodes;
         }
     
@@ -160,7 +161,7 @@ Node** get_queries(Config* config, Node** graph_nodes) {
         if (config->query_file.size() >= 6 && config->query_file.substr(config->query_file.size() - 6) == ".fvecs") {
             // Load queries from fvecs file
             Node** queries = new Node*[config->num_queries];
-            load_fvecs(config->query_file, queries, config->num_queries, config->dimensions);
+            load_fvecs(config->query_file, "queries", queries, config->num_queries, config->dimensions);
             return queries;
         }
 
@@ -352,19 +353,19 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, No
             // Export search data
             *query->debug_file << "Iteration " << iteration << endl;
             for (int index : visited)
-                *query->debug_file << index << "(" << query->distance(hnsw->nodes[index]) << "),";
+                *query->debug_file << index << " (" << query->distance(hnsw->nodes[index]) << "),";
             *query->debug_file << endl;
 
             priority_queue<pair<float, Node*>> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
-                *query->debug_file << temp_candidates.top().second->index << "(" << -temp_candidates.top().first << "),";
+                *query->debug_file << temp_candidates.top().second->index << " (" << -temp_candidates.top().first << "),";
                 temp_candidates.pop();
             }
             *query->debug_file << endl;
 
             priority_queue<pair<float, Node*>> temp_found(found);
             while (!temp_found.empty()) {
-                *query->debug_file << temp_found.top().second->index << "(" << temp_found.top().first << "),";
+                *query->debug_file << temp_found.top().second->index << " (" << temp_found.top().first << "),";
                 temp_found.pop();
             }
             *query->debug_file << endl;
@@ -506,7 +507,8 @@ void insert_nodes(Config* config, HNSW* hnsw, Node** nodes) {
         insert(config, hnsw, query, config->optimal_connections, config->max_connections, config->ef_construction,
             normal_factor, [&]() {
                 return dis(rand);
-            });
+            }
+        );
     }
 }
 
@@ -538,8 +540,8 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
         vector<pair<float, Node*>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
-
-	    if (config->print_results) {
+        
+        if (config->print_results) {
             // Print out found
             cout << "Found " << found.size() << " nearest neighbors of [" << query->values[0];
             for (int dim = 1; dim < config->dimensions; ++dim)
@@ -603,10 +605,10 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
                 file << "," << query->values[dim];
             file << endl;
             for (auto n_pair : found)
-                file << n_pair.second->index << "(" << n_pair.first << "),";
+                file << n_pair.second->index << " (" << n_pair.first << "),";
             file << endl;
             for (int node : paths[i])
-                file << node << "(" << query->distance(hnsw->nodes[node]) << "),";
+                file << node << " (" << query->distance(hnsw->nodes[node]) << "),";
             file << endl;
         }
     }
@@ -656,9 +658,9 @@ void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
         for (int level = 0; level < hnsw->get_layers(); ++level) {
             file << "Level " << level << endl;
             HNSWLayer* layer = hnsw->layers[level];
-
+            
             // Append neighbors of each node in a single line
-             for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
+            for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
                 if (it->second->empty())
                     continue;
                 file << it->first << ":";
