@@ -16,6 +16,33 @@ Node::Node(int index, int dimensions, float* values) : index(index), dimensions(
     }
 }
 
+float Node::distance(Node* other) {
+    ++dist_comps;
+    return calculate_l2_sq(this->values, other->values, this->dimensions);
+}
+
+Node::~Node() {
+    delete[] values;
+}
+
+HNSWLayer::~HNSWLayer() {
+    for (auto it = mappings.begin(); it != mappings.end(); it++) {
+        delete it->second;
+    }
+}
+
+HNSW::HNSW(int node_size, Node** nodes) : node_size(node_size), nodes(nodes) {}
+
+int HNSW::get_layers() {
+    return layers.size();
+}
+
+HNSW::~HNSW() {
+    for (size_t i = 0; i < layers.size(); i++) {
+        delete layers[i];
+    }
+}
+
 float calculate_l2_sq(float* a, float* b, int size) {
     int parts = size / 8;
 
@@ -52,33 +79,6 @@ float calculate_l2_sq(float* a, float* b, int size) {
     return sum[0] + remainder;
 }
 
-float Node::distance(Node* other) {
-    ++dist_comps;
-    return calculate_l2_sq(this->values, other->values, this->dimensions);
-}
-
-Node::~Node() {
-    delete[] values;
-}
-
-HNSWLayer::~HNSWLayer() {
-    for (auto it = mappings.begin(); it != mappings.end(); it++) {
-        delete it->second;
-    }
-}
-
-HNSW::HNSW(int node_size, Node** nodes) : node_size(node_size), nodes(nodes) {}
-
-int HNSW::get_layers() {
-    return layers.size();
-}
-
-HNSW::~HNSW() {
-    for (size_t i = 0; i < layers.size(); i++) {
-        delete layers[i];
-    }
-}
-
 void load_fvecs(const string& file, const string& type, Node** nodes, int num, int dim) {
     ifstream f(file, ios::binary | ios::in);
     if (!f) {
@@ -88,10 +88,18 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
     cout << "Loading " << type << " from file " << file << endl;
 
     // Read dimension
-    unsigned read_dim;
+    int read_dim;
     f.read((char*)&read_dim, 4);
     if (dim != read_dim) {
         cout << "Mismatch between expected and actual dimension: " << dim << "!=" << read_dim << endl;
+        exit(-1);
+    }
+
+    // Check size
+    f.seekg(0, ios::end);
+    if (num > f.tellg() / (dim * 4 + 4)) {
+        cout << "Requested number of " << type << " is greater than number in file: "
+            << num << " > " << f.tellg() / (dim * 4 + 4) << endl;
         exit(-1);
     }
 
@@ -102,8 +110,47 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
 
         // Read point
         float values[dim];
-        f.read((char *)values, dim * 4);
+        f.read((char*)values, dim * 4);
         nodes[i] = new Node(i, dim, values);
+    }
+    f.close();
+}
+
+void load_ivecs(const string& file, vector<vector<int>> &results, int num, int num_return) {
+    ifstream f(file, ios::binary | ios::in);
+    if (!f) {
+        cout << "File " << file << " not found!" << endl;
+        exit(-1);
+    }
+    cout << "Loading groundtruth from file " << file << endl;
+
+    // Read width
+    int width;
+    f.read((char*)&width, 4);
+    if (num_return > width) {
+        cout << "Requested num_return is greater than width in file: " << num_return << " > " << width << endl;
+        exit(-1);
+    }
+
+    // Check size
+    f.seekg(0, ios::end);
+    if (num > f.tellg() / (width * 4 + 4)) {
+        cout << "Requested number of queries is greater than number in file: "
+            << num << " > " << f.tellg() / (width * 4 + 4) << endl;
+        exit(-1);
+    }
+
+    results.reserve(num);
+    results.resize(num);
+    f.seekg(0, ios::beg);
+    for (int i = 0; i < num; i++) {
+        // Skip list size
+        f.seekg(4, ios::cur);
+
+        // Read point
+        int values[width];
+        f.read((char*)values, width * 4);
+        results[i] = vector<int>(values, values + width);
     }
     f.close();
 }
@@ -536,6 +583,16 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
     vector<int>* paths = new vector<int>[config->num_queries];
     ofstream file(config->export_dir + "queries.txt");
 
+    bool use_groundtruth = config->groundtruth_file != "";
+    if (use_groundtruth && config->query_file == "") {
+        cout << "Warning: Groundtruth file will not be used because queries were generated" << endl;
+        use_groundtruth = false;
+    }
+
+    vector<vector<int>> results;
+    if (use_groundtruth)
+        load_ivecs(config->groundtruth_file, results, config->num_queries, config->num_return);
+
     int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
         Node* query = queries[i];
@@ -557,25 +614,35 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
             cout << endl;
         }
 
-        vector<pair<float, Node*>> actual;
         if (config->print_actual || config->print_indiv_recalls || config->print_total_recall) {
-            // Get actual nearest neighbors
-            priority_queue<pair<float, Node*>> pq;
-            for (int j = 0; j < config->num_nodes; ++j) {
-                pq.emplace(query->distance(hnsw->nodes[j]), hnsw->nodes[j]);
-                if (pq.size() > config->num_return)
+            vector<pair<float, Node*>> actual;
+
+            if (use_groundtruth) {
+                // Load nearest neighbors
+                actual.reserve(config->num_return);
+                actual.resize(config->num_return);
+                for (int j = 0; j < config->num_return; ++j) {
+                    actual[j] = make_pair(query->distance(hnsw->nodes[results[i][j]]), hnsw->nodes[results[i][j]]);
+                }
+            } else {
+                // Get actual nearest neighbors
+                priority_queue<pair<float, Node*>> pq;
+                for (int j = 0; j < config->num_nodes; ++j) {
+                    pq.emplace(query->distance(hnsw->nodes[j]), hnsw->nodes[j]);
+                    if (pq.size() > config->num_return)
+                        pq.pop();
+                }
+
+                // Place actual nearest neighbors
+                actual.reserve(config->num_return);
+                actual.resize(config->num_return);
+
+                int idx = config->num_return;
+                while (idx > 0) {
+                    --idx;
+                    actual[idx] = pq.top();
                     pq.pop();
-            }
-
-            // Place actual nearest neighbors
-            actual.reserve(config->num_return);
-            actual.resize(config->num_return);
-
-            int idx = config->num_return;
-            while (idx > 0) {
-                --idx;
-                actual[idx] = pq.top();
-                pq.pop();
+                }
             }
 
             if (config->print_actual) {

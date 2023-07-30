@@ -13,6 +13,7 @@ class Config {
 public:
     const std::string load_file = "";
     const std::string query_file = "";
+    const std::string groundtruth_file = "";
     const std::string export_dir = "runs/";
 
     int graph_seed = 0;
@@ -86,8 +87,13 @@ public:
     ~HNSW();
 };
 
-Node** get_nodes(Config* config);
+// Helper functions
+float calculate_l2_sq(float* a, float* b, int size);
+void load_fvecs(const std::string& file, const std::string& type, Node** nodes, int num, int dim);
+void load_ivecs(const std::string& file, std::vector<std::vector<int>>& results, int num, int dim);
 
+// Loading nodes
+Node** get_nodes(Config* config);
 Node** get_queries(Config* config, Node** graph_nodes);
 
 // Main algorithms
