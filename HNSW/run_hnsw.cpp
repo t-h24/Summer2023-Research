@@ -3,6 +3,9 @@
 
 using namespace std;
 
+/** 
+ * This class is used to run a single instance of the HNSW algorithm.
+*/
 int main() {
     time_t now = time(NULL);
     cout << "HNSW run started at " << ctime(&now);

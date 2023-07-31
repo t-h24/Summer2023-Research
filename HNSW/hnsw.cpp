@@ -736,5 +736,6 @@ void export_graph(Config* config, HNSW* hnsw, Node** nodes) {
                 file << endl;
             }
         }
+        file.close();
     }
 }

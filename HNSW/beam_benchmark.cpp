@@ -21,6 +21,10 @@ vector<vector<pair<float, Node*>>> return_queries(Config* config, HNSW* hnsw, No
     return results;
 }
 
+/**
+ * This class is used to run HNSW with different parameters, comparing the recall
+ * versus ideal for each set of parameters.
+*/
 int main() {
     time_t now = time(0);
     cout << "Benchmark run started at " << ctime(&now);
