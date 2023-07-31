@@ -100,43 +100,69 @@ int main() {
         delete hnsw;
     }
 
-    // Calcuate actual neighbors per query
-    auto start = chrono::high_resolution_clock::now();
-    for (int i = 0; i < config->num_queries; ++i) {
-        Node* query = queries[i];
-        neighbors[SIZE * SEARCH_SIZE].push_back(vector<pair<float, Node*>>());
-        priority_queue<pair<float, Node*>> pq;
+    bool use_groundtruth = config->groundtruth_file != "";
+    if (use_groundtruth && config->query_file == "") {
+        cout << "Warning: Groundtruth file will not be used because queries were generated" << endl;
+        use_groundtruth = false;
+    }
 
-        for (int j = 0; j < config->num_nodes; ++j) {
-            pq.emplace(query->distance(nodes[j]), nodes[j]);
-            if (pq.size() > config->num_return)
-                pq.pop();
-        }
+    if (use_groundtruth) {
+        // Load actual nearest neighbors
+        vector<vector<int>> groundtruth;
+        load_ivecs(config->groundtruth_file, groundtruth, config->num_queries, config->num_return);
 
         // Place actual nearest neighbors
-        neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
-        neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
+        neighbors[SIZE * SEARCH_SIZE].reserve(config->num_queries);
+        neighbors[SIZE * SEARCH_SIZE].resize(config->num_queries);
 
-        size_t idx = pq.size();
-        while (idx > 0) {
-            --idx;
-            neighbors[SIZE * SEARCH_SIZE][i][idx] = pq.top();
-            pq.pop();
-        }
+        for (int i = 0; i < config->num_queries; ++i) {
+            neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
+            neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
 
-        // Print out neighbors[SIZE][i]
-        if (PRINT_NEIGHBORS) {
-            cout << "Neighbors in ideal case for query " << i << endl;
-            for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
-                auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
-                cout << n_pair.second->index << " (" << n_pair.first << ") ";
+            for (int j = 0; j < config->num_return; ++j) {
+                int index = groundtruth[i][j];
+                neighbors[SIZE * SEARCH_SIZE][i][j] = make_pair(nodes[index]->distance(queries[i]), nodes[index]);
             }
-            cout << endl;
         }
+    } else {
+        // Calcuate actual nearest neighbors per query
+        auto start = chrono::high_resolution_clock::now();
+        for (int i = 0; i < config->num_queries; ++i) {
+            Node* query = queries[i];
+            neighbors[SIZE * SEARCH_SIZE].push_back(vector<pair<float, Node*>>());
+            priority_queue<pair<float, Node*>> pq;
+
+            for (int j = 0; j < config->num_nodes; ++j) {
+                pq.emplace(query->distance(nodes[j]), nodes[j]);
+                if (pq.size() > config->num_return)
+                    pq.pop();
+            }
+
+            // Place actual nearest neighbors
+            neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
+            neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
+
+            size_t idx = pq.size();
+            while (idx > 0) {
+                --idx;
+                neighbors[SIZE * SEARCH_SIZE][i][idx] = pq.top();
+                pq.pop();
+            }
+
+            // Print out neighbors[SIZE][i]
+            if (PRINT_NEIGHBORS) {
+                cout << "Neighbors in ideal case for query " << i << endl;
+                for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
+                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
+                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                }
+                cout << endl;
+            }
+        }
+        auto end = chrono::high_resolution_clock::now();
+        auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+        cout << "Brute force time: " << duration / 1000.0 << " seconds" << endl;
     }
-    auto end = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-    cout << "Brute force time: " << duration / 1000.0 << " seconds" << endl;
 
     // Find differences between different ef_construction values and optimal
     for (int i = 0; i < SIZE * SEARCH_SIZE; ++i) {

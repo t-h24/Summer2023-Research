@@ -618,7 +618,7 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
             vector<pair<float, Node*>> actual;
 
             if (use_groundtruth) {
-                // Load nearest neighbors
+                // Load actual nearest neighbors
                 actual.reserve(config->num_return);
                 actual.resize(config->num_return);
                 for (int j = 0; j < config->num_return; ++j) {
