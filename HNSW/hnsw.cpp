@@ -91,7 +91,7 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
     int read_dim;
     f.read((char*)&read_dim, 4);
     if (dim != read_dim) {
-        cout << "Mismatch between expected and actual dimension: " << dim << "!=" << read_dim << endl;
+        cout << "Mismatch between expected and actual dimension: " << dim << " != " << read_dim << endl;
         exit(-1);
     }
 
@@ -400,19 +400,19 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, No
             // Export search data
             *query->debug_file << "Iteration " << iteration << endl;
             for (int index : visited)
-                *query->debug_file << index << " (" << query->distance(hnsw->nodes[index]) << "),";
+                *query->debug_file << index << ",";
             *query->debug_file << endl;
 
             priority_queue<pair<float, Node*>> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
-                *query->debug_file << temp_candidates.top().second->index << " (" << -temp_candidates.top().first << "),";
+                *query->debug_file << temp_candidates.top().second->index << ",";
                 temp_candidates.pop();
             }
             *query->debug_file << endl;
 
             priority_queue<pair<float, Node*>> temp_found(found);
             while (!temp_found.empty()) {
-                *query->debug_file << temp_found.top().second->index << " (" << temp_found.top().first << "),";
+                *query->debug_file << temp_found.top().second->index << ",";
                 temp_found.pop();
             }
             *query->debug_file << endl;
@@ -672,10 +672,10 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
                 file << "," << query->values[dim];
             file << endl;
             for (auto n_pair : found)
-                file << n_pair.second->index << " (" << n_pair.first << "),";
+                file << n_pair.second->index << ",";
             file << endl;
             for (int node : paths[i])
-                file << node << " (" << query->distance(hnsw->nodes[node]) << "),";
+                file << node << ",";
             file << endl;
         }
     }
