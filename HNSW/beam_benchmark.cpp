@@ -54,40 +54,6 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nod
     int entry_point;
     graph_file.read(reinterpret_cast<char*>(&entry_point), sizeof(entry_point));
     hnsw->entry_point = nodes[entry_point];
-
-    /*
-    // DEBUG START
-    // Print each node's level
-    for (int i = 0; i < num_nodes; ++i) {
-        cout << nodes[i]->level << " ";
-    }
-    cout << "Debug levels done" << endl;
-
-    // Print edges
-    for (int level = 0; level < hnsw->get_layers(); ++level) {
-        HNSWLayer* layer = hnsw->layers[level];
-        for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
-            if (it->second->empty())
-                continue;
-            int node_index = it->first;
-            cout << node_index << " ";
-
-            int n_size = it->second->size();
-            cout << n_size << " ";
-
-            for (auto n_pair : *it->second) {
-                int neighbor_index = n_pair.second->index;
-                float distance = n_pair.first;
-                cout << neighbor_index << " " << distance << " ";
-            }
-            cout << endl;
-        }
-    }
-    cout << "Debug edges done" << endl;
-    // Print entry point
-    cout << "Entry point: " << hnsw->entry_point->index << endl;
-    // DEBUG END
-    */
 }
 
 vector<vector<pair<float, Node*>>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
