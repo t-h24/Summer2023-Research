@@ -79,7 +79,7 @@ float calculate_l2_sq(float* a, float* b, int size) {
     return sum[0] + remainder;
 }
 
-void load_fvecs(const string& file, const string& type, Node** nodes, int num, int dim) {
+void load_fvecs(const string& file, const string& type, Node** nodes, int num, int dim, bool has_groundtruth) {
     ifstream f(file, ios::binary | ios::in);
     if (!f) {
         cout << "File " << file << " not found!" << endl;
@@ -89,7 +89,7 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
 
     // Read dimension
     int read_dim;
-    f.read((char*)&read_dim, 4);
+    f.read(reinterpret_cast<char*>(&read_dim), 4);
     if (dim != read_dim) {
         cout << "Mismatch between expected and actual dimension: " << dim << " != " << read_dim << endl;
         exit(-1);
@@ -102,6 +102,10 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
             << num << " > " << f.tellg() / (dim * 4 + 4) << endl;
         exit(-1);
     }
+    if (type == "nodes" && num != f.tellg() / (dim * 4 + 4) && has_groundtruth) {
+        cout << "You must load all " << f.tellg() / (dim * 4 + 4) << " nodes if you want to use a groundtruth file" << endl;
+        exit(-1);
+    }
 
     f.seekg(0, ios::beg);
     for (int i = 0; i < num; i++) {
@@ -110,7 +114,7 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
 
         // Read point
         float values[dim];
-        f.read((char*)values, dim * 4);
+        f.read(reinterpret_cast<char*>(values), dim * 4);
         nodes[i] = new Node(i, dim, values);
     }
     f.close();
@@ -126,7 +130,7 @@ void load_ivecs(const string& file, vector<vector<int>> &results, int num, int n
 
     // Read width
     int width;
-    f.read((char*)&width, 4);
+    f.read(reinterpret_cast<char*>(&width), 4);
     if (num_return > width) {
         cout << "Requested num_return is greater than width in file: " << num_return << " > " << width << endl;
         exit(-1);
@@ -149,7 +153,7 @@ void load_ivecs(const string& file, vector<vector<int>> &results, int num, int n
 
         // Read point
         int values[width];
-        f.read((char*)values, width * 4);
+        f.read(reinterpret_cast<char*>(values), width * 4);
         results[i] = vector<int>(values, values + width);
     }
     f.close();
@@ -160,7 +164,7 @@ Node** get_nodes(Config* config) {
         if (config->load_file.size() >= 6 && config->load_file.substr(config->load_file.size() - 6) == ".fvecs") {
             // Load nodes from fvecs file
             Node** nodes = new Node*[config->num_nodes];
-            load_fvecs(config->load_file, "nodes", nodes, config->num_nodes, config->dimensions);
+            load_fvecs(config->load_file, "nodes", nodes, config->num_nodes, config->dimensions, config->groundtruth_file != "");
             return nodes;
         }
     
@@ -208,7 +212,7 @@ Node** get_queries(Config* config, Node** graph_nodes) {
         if (config->query_file.size() >= 6 && config->query_file.substr(config->query_file.size() - 6) == ".fvecs") {
             // Load queries from fvecs file
             Node** queries = new Node*[config->num_queries];
-            load_fvecs(config->query_file, "queries", queries, config->num_queries, config->dimensions);
+            load_fvecs(config->query_file, "queries", queries, config->num_queries, config->dimensions, config->groundtruth_file != "");
             return queries;
         }
 

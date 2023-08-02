@@ -5,8 +5,90 @@
 
 using namespace std;
 
+const bool LOAD_FROM_FILE = false;
+const string LOAD_DIR = "exports/";
+const string LOAD_NAME = "random_graph";
+
 const bool PRINT_NEIGHBORS = false;
 const bool PRINT_MISSING = false;
+
+void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nodes, int num_layers) {
+    // Load node levels
+    for (int i = 0; i < num_nodes; ++i) {
+        int level;
+        graph_file.read(reinterpret_cast<char*>(&level), sizeof(level));
+        nodes[i]->level = level;
+    }
+
+    // Load edges
+    for (int i = 1; i < num_layers; ++i) {
+        HNSWLayer* layer = new HNSWLayer();
+        hnsw->layers.push_back(layer);
+    }
+    for (int i = 0; i < num_layers; ++i) {
+        int num_entries;
+        graph_file.read(reinterpret_cast<char*>(&num_entries), sizeof(num_entries));
+
+        for (int j = 0; j < num_entries; ++j) {
+            int node_index;
+            graph_file.read(reinterpret_cast<char*>(&node_index), sizeof(node_index));
+
+            int num_neighbors;
+            graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
+
+            vector<pair<float, Node*>>* neighbors = new vector<pair<float, Node*>>();
+            neighbors->reserve(num_neighbors);
+            for (int k = 0; k < num_neighbors; ++k) {
+                int neighbor_index;
+                float distance;
+                graph_file.read(reinterpret_cast<char*>(&neighbor_index), sizeof(neighbor_index));
+                graph_file.read(reinterpret_cast<char*>(&distance), sizeof(distance));
+                neighbors->push_back(make_pair(distance, nodes[neighbor_index]));
+            }
+
+            hnsw->layers[i]->mappings[node_index] = neighbors;
+        }
+    }
+
+    // Load entry point
+    int entry_point;
+    graph_file.read(reinterpret_cast<char*>(&entry_point), sizeof(entry_point));
+    hnsw->entry_point = nodes[entry_point];
+
+    /*
+    // DEBUG START
+    // Print each node's level
+    for (int i = 0; i < num_nodes; ++i) {
+        cout << nodes[i]->level << " ";
+    }
+    cout << "Debug levels done" << endl;
+
+    // Print edges
+    for (int level = 0; level < hnsw->get_layers(); ++level) {
+        HNSWLayer* layer = hnsw->layers[level];
+        for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
+            if (it->second->empty())
+                continue;
+            int node_index = it->first;
+            cout << node_index << " ";
+
+            int n_size = it->second->size();
+            cout << n_size << " ";
+
+            for (auto n_pair : *it->second) {
+                int neighbor_index = n_pair.second->index;
+                float distance = n_pair.first;
+                cout << neighbor_index << " " << distance << " ";
+            }
+            cout << endl;
+        }
+    }
+    cout << "Debug edges done" << endl;
+    // Print entry point
+    cout << "Entry point: " << hnsw->entry_point->index << endl;
+    // DEBUG END
+    */
+}
 
 vector<vector<pair<float, Node*>>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
     vector<vector<pair<float, Node*>>> results;
@@ -70,24 +152,83 @@ int main() {
             cout << "Config error!" << endl;
             return 1;
         }
+        HNSW* hnsw = NULL;
 
-        auto start = chrono::high_resolution_clock::now();
+        if (LOAD_FROM_FILE) {
+            // Get files to load from
+            const string graph_file_name = LOAD_DIR + LOAD_NAME + "_graph_" + to_string(i) + ".bin";
+            const string info_file_name = LOAD_DIR + LOAD_NAME + "_info_" + to_string(i) + ".txt";
+            ifstream graph_file(graph_file_name);
+            ifstream info_file(info_file_name);
 
-        // Insert nodes into HNSW
-        cout << "Inserting with construction parameters: "
-            << config->optimal_connections << ", " << config->max_connections << ", "
-            << config->max_connections_0 << ", " << config->ef_construction << endl; 
-        HNSW* hnsw = init_hnsw(config, nodes);
-        insert_nodes(config, hnsw, nodes);
+            if (!graph_file) {
+                cout << "File " << graph_file_name << " not found!" << endl;
+                return 1;
+            }
+            if (!info_file) {
+                cout << "File " << info_file_name << " not found!" << endl;
+                return 1;
+            }
 
-        auto end = chrono::high_resolution_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
-        cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-        cout << "Distance computations: " << dist_comps << endl;
+            int opt_con, max_con, max_con_0, ef_con;
+            int num_nodes;
+            int num_layers;
+            long long dist_comps;
+            double construct_duration;
+            info_file >> opt_con >> max_con >> max_con_0 >> ef_con;
+            info_file >> num_nodes;
+            info_file >> num_layers;
+            info_file >> dist_comps;
+            info_file >> construct_duration;
+
+            // Check if number of nodes match
+            if (num_nodes != config->num_nodes) {
+                cout << "Mismatch between loaded and expected number of nodes" << endl;
+                return 1;
+            }
+
+            // Check if construction parameters match
+            if (opt_con != config->optimal_connections || max_con != config->max_connections ||
+                max_con_0 != config->max_connections_0 || ef_con != config->ef_construction) {
+                cout << "Mismatch between loaded and expected construction parameters" << endl;
+                return 1;
+            }
+
+            // Load graph from file
+            auto start = chrono::high_resolution_clock::now();
+
+            cout << "Loading graph with construction parameters: "
+                << config->optimal_connections << ", " << config->max_connections << ", "
+                << config->max_connections_0 << ", " << config->ef_construction << endl;
+
+            hnsw = init_hnsw(config, nodes);
+            hnsw->layers[0]->mappings.clear();
+            load_hnsw_graph(hnsw, graph_file, nodes, num_nodes, num_layers);
+
+            auto end = chrono::high_resolution_clock::now();
+            auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+            cout << "Load time: " << duration / 1000.0 << " seconds" << endl;
+            cout << "Construction time: " << construct_duration << " seconds" << endl;
+            cout << "Distance computations: " << dist_comps << endl;
+        } else {
+            // Insert nodes into HNSW
+            auto start = chrono::high_resolution_clock::now();
+
+            cout << "Inserting with construction parameters: "
+                << config->optimal_connections << ", " << config->max_connections << ", "
+                << config->max_connections_0 << ", " << config->ef_construction << endl; 
+            hnsw = init_hnsw(config, nodes);
+            insert_nodes(config, hnsw, nodes);
+
+            auto end = chrono::high_resolution_clock::now();
+            auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+            cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
+            cout << "Distance computations: " << dist_comps << endl;
+        }
 
         for (int j = 0; j < SEARCH_SIZE; ++j) {
             config->ef_construction_search = ef_construction_searches[j];
-            start = chrono::high_resolution_clock::now();
+            auto start = chrono::high_resolution_clock::now();
             dist_comps = 0;
 
             // Run query search
@@ -95,8 +236,8 @@ int main() {
             vector<vector<pair<float, Node*>>> results = return_queries(config, hnsw, queries);
             neighbors[i * SEARCH_SIZE + j] = results;
 
-            end = chrono::high_resolution_clock::now();
-            duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
+            auto end = chrono::high_resolution_clock::now();
+            auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
             cout << "Distance computations: " << dist_comps << endl;
         }

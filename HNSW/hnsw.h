@@ -89,7 +89,7 @@ public:
 
 // Helper functions
 float calculate_l2_sq(float* a, float* b, int size);
-void load_fvecs(const std::string& file, const std::string& type, Node** nodes, int num, int dim);
+void load_fvecs(const std::string& file, const std::string& type, Node** nodes, int num, int dim, bool has_groundtruth);
 void load_ivecs(const std::string& file, std::vector<std::vector<int>>& results, int num, int dim);
 
 // Loading nodes
