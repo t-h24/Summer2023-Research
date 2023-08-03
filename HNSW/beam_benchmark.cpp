@@ -216,7 +216,7 @@ int main() {
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
             cout << "Distance computations: " << dist_comps << endl;
 
-            search_durations.push_back(duration / 1000.0);
+            search_durations.push_back(duration);
             search_dist_comps.push_back(dist_comps);
         }
 
