@@ -85,7 +85,7 @@ void load_fvecs(const string& file, const string& type, Node** nodes, int num, i
         cout << "File " << file << " not found!" << endl;
         exit(-1);
     }
-    cout << "Loading " << type << " from file " << file << endl;
+    cout << "Loading " << num << " " << type << " from file " << file << endl;
 
     // Read dimension
     int read_dim;
@@ -174,7 +174,7 @@ Node** get_nodes(Config* config) {
             cout << "File " << config->load_file << " not found!" << endl;
             exit(1);
         }
-        cout << "Loading nodes from file " << config->load_file << endl;
+        cout << "Loading " << config->num_nodes << " nodes from file " << config->load_file << endl;
 
         Node** nodes = new Node*[config->num_nodes];
         for (int i = 0; i < config->num_nodes; i++) {
@@ -189,7 +189,7 @@ Node** get_nodes(Config* config) {
         return nodes;
     }
 
-    cout << "Generating random nodes" << endl;
+    cout << "Generating " << config->num_nodes << " random nodes" << endl;
 
     mt19937 gen(config->graph_seed);
     uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
@@ -222,7 +222,7 @@ Node** get_queries(Config* config, Node** graph_nodes) {
             cout << "File " << config->query_file << " not found!" << endl;
             exit(1);
         }
-        cout << "Loading queries from file " << config->query_file << endl;
+        cout << "Loading " << config->num_queries << " queries from file " << config->query_file << endl;
 
         Node** queries = new Node*[config->num_queries];
         for (int i = 0; i < config->num_queries; i++) {
@@ -239,7 +239,7 @@ Node** get_queries(Config* config, Node** graph_nodes) {
 
     if (config->load_file == "") {
         // Generate random queries (same as get_nodes)
-        cout << "Generating random queries" << endl;
+        cout << "Generating " << config->num_queries << " random queries" << endl;
         uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
 
         Node** queries = new Node*[config->num_queries];

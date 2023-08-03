@@ -24,9 +24,6 @@ int main() {
     // Get num_nodes amount of graph nodes
     Node** nodes = get_nodes(config);
 
-    // Generate num_queries amount of queries
-    Node** queries = get_queries(config, nodes);
-
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
 
     // Initialize different config values

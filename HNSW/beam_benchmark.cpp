@@ -12,6 +12,10 @@ const string LOAD_NAME = "random_graph";
 const bool PRINT_NEIGHBORS = false;
 const bool PRINT_MISSING = false;
 
+const bool EXPORT_RESULTS = false;
+const string EXPORT_DIR = "exports/";
+const string EXPORT_NAME = "random_graph";
+
 void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nodes, int num_layers) {
     // Load node levels
     for (int i = 0; i < num_nodes; ++i) {
@@ -103,6 +107,11 @@ int main() {
 
     const int SEARCH_SIZE = 2;
     int ef_construction_searches[SEARCH_SIZE] = {300, 500};
+
+    vector<double> search_durations;
+    vector<long long> search_dist_comps;
+    search_durations.reserve(SIZE * SEARCH_SIZE);
+    search_dist_comps.reserve(SIZE * SEARCH_SIZE); 
 
     // Run HNSW with different ef_construction values
     vector<vector<pair<float, Node*>>> neighbors[SIZE * SEARCH_SIZE + 1];
@@ -206,6 +215,9 @@ int main() {
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
             cout << "Distance computations: " << dist_comps << endl;
+
+            search_durations.push_back(duration / 1000.0);
+            search_dist_comps.push_back(dist_comps);
         }
 
         delete hnsw;
@@ -232,7 +244,17 @@ int main() {
 
             for (int j = 0; j < config->num_return; ++j) {
                 int index = groundtruth[i][j];
-                neighbors[SIZE * SEARCH_SIZE][i][j] = make_pair(nodes[index]->distance(queries[i]), nodes[index]);
+                neighbors[SIZE * SEARCH_SIZE][i][j] = make_pair(queries[i]->distance(nodes[index]), nodes[index]);
+            }
+
+            // Print out neighbors
+            if (PRINT_NEIGHBORS) {
+                cout << "Neighbors in ideal case for query " << i << endl;
+                for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
+                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
+                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                }
+                cout << endl;
             }
         }
     } else {
@@ -260,7 +282,7 @@ int main() {
                 pq.pop();
             }
 
-            // Print out neighbors[SIZE][i]
+            // Print out neighbors
             if (PRINT_NEIGHBORS) {
                 cout << "Neighbors in ideal case for query " << i << endl;
                 for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
@@ -275,6 +297,8 @@ int main() {
         cout << "Brute force time: " << duration / 1000.0 << " seconds" << endl;
     }
 
+    ofstream* results_file = NULL;
+
     // Find differences between different ef_construction values and optimal
     for (int i = 0; i < SIZE * SEARCH_SIZE; ++i) {
         int opt_con = optimal_connections[i / SEARCH_SIZE];
@@ -285,6 +309,20 @@ int main() {
 
         cout << "Results for construction parameters: " << opt_con << ", " << max_con << ", "
             << max_con_0 << ", " << ef_con << " and search parameters: " << ef_con_s << endl;
+
+        // Setup export file per set of parameters
+        if (EXPORT_RESULTS && i % SEARCH_SIZE == 0) {
+            if (results_file != NULL) {
+                results_file->close();
+                delete results_file;
+            }
+
+            results_file = new ofstream(EXPORT_DIR + EXPORT_NAME + "_results_"
+                + to_string(config->num_queries) + "_" + to_string(config->num_return) + "_" + to_string(i / SEARCH_SIZE) + ".csv");
+            *results_file << config->num_queries << " queries, " << config->num_return << " results on "
+                << EXPORT_NAME << " with construction parameters: " << opt_con << ", " << max_con << ", "
+                << max_con_0 << ", " << ef_con << endl;
+        }
 
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
@@ -319,8 +357,21 @@ int main() {
             }
         }
 
+        double recall = (double) similar / (config->num_queries * config->num_return);
         cout << "Correctly found neighbors: " << similar << " ("
-            << (double) similar / (config->num_queries * config->num_return) * 100 << "%)" << endl;
+            << recall * 100 << "%)" << endl;
+
+        if (EXPORT_RESULTS) {
+            *results_file << ef_con_s << ", " << search_dist_comps[i] / config->num_queries << ", "
+                << recall << ", " << search_durations[i] / config->num_queries << endl;
+        }
+    }
+
+    if (results_file != NULL) {
+        results_file->close();
+        delete results_file;
+        cout << "Results exported to " << EXPORT_DIR << EXPORT_NAME << "_results_"
+            << config->num_queries << "_" << config->num_return << "_*.csv" << endl;
     }
 
     // Delete nodes
