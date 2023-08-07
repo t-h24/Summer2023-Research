@@ -307,6 +307,7 @@ int main() {
                 + to_string(config->num_queries) + "_" + to_string(config->num_return) + "_" + to_string(i / SEARCH_SIZE) + ".csv");
             *results_file << EXPORT_NAME << " of size " << config->num_nodes << " with construction parameters: " << opt_con << ", " << max_con << ", "
                 << max_con_0 << ", " << ef_con << endl;
+            *results_file << "ef_search, dist_comps/query, recall, search time (MS)/query" << endl;
         }
 
         int similar = 0;
