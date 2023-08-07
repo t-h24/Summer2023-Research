@@ -38,8 +38,8 @@ public:
 
     bool print_results = false;
     bool print_actual = false;
-    bool print_indiv_recalls = false;
-    bool print_total_recall = true;
+    bool print_indiv_found = false;
+    bool print_total_found = true;
 
     bool debug_insert = false;
     bool debug_graph = false;

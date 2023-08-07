@@ -1,6 +1,7 @@
 #include <iostream>
 #include <algorithm>
 #include <chrono>
+#include <unordered_set>
 #include "hnsw.h"
 
 using namespace std;
@@ -114,7 +115,8 @@ int main() {
     search_dist_comps.reserve(SIZE * SEARCH_SIZE); 
 
     // Run HNSW with different ef_construction values
-    vector<vector<pair<float, Node*>>> neighbors[SIZE * SEARCH_SIZE + 1];
+    vector<vector<pair<float, Node*>>> neighbors[SIZE * SEARCH_SIZE];
+    vector<vector<int>> actual_neighbors;
     for (int i = 0; i < SIZE; ++i) {
         config->optimal_connections = optimal_connections[i];
         config->max_connections = max_connections[i];
@@ -231,28 +233,13 @@ int main() {
 
     if (use_groundtruth) {
         // Load actual nearest neighbors
-        vector<vector<int>> groundtruth;
-        load_ivecs(config->groundtruth_file, groundtruth, config->num_queries, config->num_return);
+        load_ivecs(config->groundtruth_file, actual_neighbors, config->num_queries, config->num_return);
 
-        // Place actual nearest neighbors
-        neighbors[SIZE * SEARCH_SIZE].reserve(config->num_queries);
-        neighbors[SIZE * SEARCH_SIZE].resize(config->num_queries);
-
-        for (int i = 0; i < config->num_queries; ++i) {
-            neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
-            neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
-
-            for (int j = 0; j < config->num_return; ++j) {
-                int index = groundtruth[i][j];
-                neighbors[SIZE * SEARCH_SIZE][i][j] = make_pair(queries[i]->distance(nodes[index]), nodes[index]);
-            }
-
-            // Print out neighbors
-            if (PRINT_NEIGHBORS) {
+        if (PRINT_NEIGHBORS) {
+            for (int i = 0; i < config->num_queries; ++i) {
                 cout << "Neighbors in ideal case for query " << i << endl;
-                for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
-                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
-                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
+                    cout << actual_neighbors[i][j] << " (" << queries[i]->distance(nodes[actual_neighbors[i][j]]) << ") ";
                 }
                 cout << endl;
             }
@@ -262,7 +249,7 @@ int main() {
         auto start = chrono::high_resolution_clock::now();
         for (int i = 0; i < config->num_queries; ++i) {
             Node* query = queries[i];
-            neighbors[SIZE * SEARCH_SIZE].push_back(vector<pair<float, Node*>>());
+            actual_neighbors.push_back(vector<int>());
             priority_queue<pair<float, Node*>> pq;
 
             for (int j = 0; j < config->num_nodes; ++j) {
@@ -272,22 +259,21 @@ int main() {
             }
 
             // Place actual nearest neighbors
-            neighbors[SIZE * SEARCH_SIZE][i].reserve(config->num_return);
-            neighbors[SIZE * SEARCH_SIZE][i].resize(config->num_return);
+            actual_neighbors[i].reserve(config->num_return);
+            actual_neighbors[i].resize(config->num_return);
 
             size_t idx = pq.size();
             while (idx > 0) {
                 --idx;
-                neighbors[SIZE * SEARCH_SIZE][i][idx] = pq.top();
+                actual_neighbors[i][idx] = pq.top().second->index;
                 pq.pop();
             }
 
             // Print out neighbors
             if (PRINT_NEIGHBORS) {
                 cout << "Neighbors in ideal case for query " << i << endl;
-                for (size_t j = 0; j < neighbors[SIZE * SEARCH_SIZE][i].size(); ++j) {
-                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][i][j];
-                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
+                    cout << actual_neighbors[i][j] << " (" << queries[i]->distance(nodes[actual_neighbors[i][j]]) << ") ";
                 }
                 cout << endl;
             }
@@ -325,9 +311,16 @@ int main() {
 
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
-            vector<pair<float, Node*>> intersection;
-            set_intersection(neighbors[i][j].begin(), neighbors[i][j].end(),
-                neighbors[SIZE * SEARCH_SIZE][j].begin(), neighbors[SIZE * SEARCH_SIZE][j].end(), back_inserter(intersection));
+            // Find similar neighbors
+            unordered_set<int> actual_set(actual_neighbors[j].begin(), actual_neighbors[j].end());
+            unordered_set<int> intersection;
+
+            for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
+                auto n_pair = neighbors[i][j][k];
+                if (actual_set.find(n_pair.second->index) != actual_set.end()) {
+                    intersection.insert(n_pair.second->index);
+                }
+            }
             similar += intersection.size();
 
             // Print out neighbors[i][j]
@@ -340,16 +333,16 @@ int main() {
                 cout << endl;
             }
 
-            // Print missing neighbors between intersection and neighbors[SIZE][j]
+            // Print missing neighbors between intersection and actual_neighbors
             if (PRINT_MISSING) {
                 cout << "Missing neighbors for query " << j << ": ";
-                size_t idx = 0;
-                for (size_t k = 0; k < neighbors[SIZE * SEARCH_SIZE][j].size(); ++k) {
-                    auto n_pair = neighbors[SIZE * SEARCH_SIZE][j][k];
-                    if (idx < intersection.size() && n_pair.second->index == intersection[idx].second->index) {
-                        ++idx;
-                    } else {
-                        cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                if (intersection.size() == actual_neighbors[j].size()) {
+                    cout << "None" << endl;
+                    continue;
+                }
+                for (size_t k = 0; k < actual_neighbors[j].size(); ++k) {
+                    if (intersection.find(actual_neighbors[j][k]) == intersection.end()) {
+                        cout << actual_neighbors[j][k] << " (" << queries[j]->distance(nodes[actual_neighbors[j][k]]) << ") ";
                     }
                 }
                 cout << endl;

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <set>
 #include <immintrin.h>
+#include <unordered_set>
 #include "hnsw.h"
 
 using namespace std;
@@ -152,9 +153,12 @@ void load_ivecs(const string& file, vector<vector<int>> &results, int num, int n
         f.seekg(4, ios::cur);
 
         // Read point
-        int values[width];
-        f.read(reinterpret_cast<char*>(values), width * 4);
-        results[i] = vector<int>(values, values + width);
+        int values[num_return];
+        f.read(reinterpret_cast<char*>(values), num_return * 4);
+        results[i] = vector<int>(values, values + num_return);
+
+        // Skip remaining values
+        f.seekg((width - num_return) * 4, ios::cur);
     }
     f.close();
 }
@@ -593,9 +597,9 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
         use_groundtruth = false;
     }
 
-    vector<vector<int>> results;
+    vector<vector<int>> actual_neighbors;
     if (use_groundtruth)
-        load_ivecs(config->groundtruth_file, results, config->num_queries, config->num_return);
+        load_ivecs(config->groundtruth_file, actual_neighbors, config->num_queries, config->num_return);
 
     int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
@@ -618,18 +622,10 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
             cout << endl;
         }
 
-        if (config->print_actual || config->print_indiv_recalls || config->print_total_recall) {
-            vector<pair<float, Node*>> actual;
-
-            if (use_groundtruth) {
-                // Load actual nearest neighbors
-                actual.reserve(config->num_return);
-                actual.resize(config->num_return);
-                for (int j = 0; j < config->num_return; ++j) {
-                    actual[j] = make_pair(query->distance(hnsw->nodes[results[i][j]]), hnsw->nodes[results[i][j]]);
-                }
-            } else {
+        if (config->print_actual || config->print_indiv_found || config->print_total_found) {
+            if (!use_groundtruth) {
                 // Get actual nearest neighbors
+                actual_neighbors.push_back(vector<int>());
                 priority_queue<pair<float, Node*>> pq;
                 for (int j = 0; j < config->num_nodes; ++j) {
                     pq.emplace(query->distance(hnsw->nodes[j]), hnsw->nodes[j]);
@@ -638,13 +634,13 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
                 }
 
                 // Place actual nearest neighbors
-                actual.reserve(config->num_return);
-                actual.resize(config->num_return);
+                actual_neighbors[i].reserve(config->num_return);
+                actual_neighbors[i].resize(config->num_return);
 
                 int idx = config->num_return;
                 while (idx > 0) {
                     --idx;
-                    actual[idx] = pq.top();
+                    actual_neighbors[i][idx] = pq.top().second->index;
                     pq.pop();
                 }
             }
@@ -655,18 +651,23 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
                 for (int dim = 1; dim < config->dimensions; ++dim)
                     cout << " " << query->values[dim];
                 cout << "] : ";
-                for (auto n_pair : actual)
-                    cout << n_pair.second->index << " ";
+                for (int index : actual_neighbors[i])
+                    cout << index << " ";
                 cout << endl;
             }
 
-            if (config->print_indiv_recalls || config->print_total_recall) {
-                vector<pair<float, Node*>> intersection;
-                set_intersection(found.begin(), found.end(), actual.begin(), actual.end(), back_inserter(intersection));
-                if (config->print_indiv_recalls)
-                    cout << "Found " << intersection.size() << " (" << intersection.size() /  (double)config->num_return * 100 << "%) for query " << i << endl;
-                if (config->print_total_recall)
-                    total_found += intersection.size();
+            if (config->print_indiv_found || config->print_total_found) {
+                unordered_set<int> actual_set(actual_neighbors[i].begin(), actual_neighbors[i].end());
+                int matching = 0;
+                for (auto n_pair : found) {
+                    if (actual_set.find(n_pair.second->index) != actual_set.end())
+                        ++matching;
+                }
+
+                if (config->print_indiv_found)
+                    cout << "Found " << matching << " (" << matching /  (double)config->num_return * 100 << "%) for query " << i << endl;
+                if (config->print_total_found)
+                    total_found += matching;
             }
         }
 
@@ -684,8 +685,8 @@ void run_query_search(Config* config, HNSW* hnsw, Node** queries) {
         }
     }
 
-    if (config->print_total_recall) {
-        cout << "Total recall: " << total_found / (double)(config->num_queries * config->num_return) * 100 << "%" << endl;
+    if (config->print_total_found) {
+        cout << "Total neighbors found: " << total_found << " (" << total_found / (double)(config->num_queries * config->num_return) * 100 << "%)" << endl;
     }
 
     cout << "Finished search" << endl;
