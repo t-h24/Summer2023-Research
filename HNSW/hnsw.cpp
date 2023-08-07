@@ -392,13 +392,16 @@ HNSW* insert(Config* config, HNSW* hnsw, Node* query, int opt_con, int max_con, 
 */
 void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, Node*>>* entry_points, int num_to_return, int layer_num) {
     set<int> visited;
-    priority_queue<pair<float, Node*>> candidates;
+    auto ge_comp = [](const pair<float, Node*>& a, const pair<float, Node*>& b) {
+        return a.first > b.first;
+    };
+    priority_queue<pair<float, Node*>, vector<pair<float, Node*>>, decltype(ge_comp)> candidates(ge_comp);
     priority_queue<pair<float, Node*>> found;
 
     // Add entry points to visited, candidates, and found
     for (auto entry : *entry_points) {
         visited.insert(entry.second->index);
-        candidates.emplace(-entry.first, entry.second);
+        candidates.emplace(entry);
         found.emplace(entry);
     }
 
@@ -411,7 +414,7 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, No
                 *query->debug_file << index << ",";
             *query->debug_file << endl;
 
-            priority_queue<pair<float, Node*>> temp_candidates(candidates);
+            priority_queue<pair<float, Node*>, vector<pair<float, Node*>>, decltype(ge_comp)> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
                 *query->debug_file << temp_candidates.top().second->index << ",";
                 temp_candidates.pop();
@@ -429,7 +432,7 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, No
 
         // Get and remove closest element in candiates to query
         Node* closest = candidates.top().second;
-        float close_dist = -candidates.top().first;
+        float close_dist = candidates.top().first;
         candidates.pop();
 
         // Get furthest element in found to query
@@ -457,7 +460,7 @@ void search_layer(Config* config, HNSW* hnsw, Node* query, vector<pair<float, No
                 // add to candidates and found
                 float neighbor_dist = query->distance(neighbor);
                 if (neighbor_dist < far_inner_dist || found.size() < num_to_return) {
-                    candidates.emplace(-neighbor_dist, neighbor);
+                    candidates.emplace(neighbor_dist, neighbor);
                     found.emplace(neighbor_dist, neighbor);
 
                     // If found is greater than num_to_return, remove furthest
