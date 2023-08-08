@@ -33,7 +33,7 @@ public:
     int ef_construction = 50;
     double scaling_factor = 0.368;
 
-    int ef_construction_search = 200;
+    int ef_search = 200;
     int num_queries = 100;
     int num_return = 20;
 

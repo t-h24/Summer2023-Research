@@ -496,9 +496,9 @@ bool sanity_checks(Config* config) {
         config->ef_construction = config->num_nodes;
         cout << "Warning: Beam width was set to " << config->num_nodes << endl;
     }
-    if (config->num_return > config->ef_construction_search) {
-        config->num_return = config->ef_construction_search;
-        cout << "Warning: Number of queries to return was set to " << config->ef_construction_search << endl;
+    if (config->num_return > config->ef_search) {
+        config->num_return = config->ef_search;
+        cout << "Warning: Number of queries to return was set to " << config->ef_search << endl;
     }
     return true;
 }
@@ -577,7 +577,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
-        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
+        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
         
         if (config->print_results) {
             // Print out found

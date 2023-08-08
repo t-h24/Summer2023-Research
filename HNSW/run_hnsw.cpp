@@ -33,22 +33,8 @@ int main() {
     load_queries(config, nodes, queries);
     cout << "Beginning search" << endl;
 
-    /* TODO
-    if (config->debug_query_search_index >= 0) {
-        ofstream* debug_file = new ofstream(config->export_dir + "query_search.txt");
-        queries[config->debug_query_search_index]->debug_file = debug_file;
-    }
-    */
-
     // Run query search and print results
     run_query_search(config, hnsw, queries);
-
-    /* TODO
-    if (config->debug_query_search_index >= 0) {
-       queries[config->debug_query_search_index]->debug_file->close();
-       delete queries[config->debug_query_search_index]->debug_file;
-    }
-    */
 
     // Export graph to file
     export_graph(config, hnsw, nodes);

@@ -52,7 +52,7 @@ vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, floa
     vector<vector<int>> paths(config->num_queries);
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
-        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
+        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
         results.push_back(found);
     }
 
@@ -86,7 +86,7 @@ int main() {
     load_queries(config, nodes, queries);
 
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
-    cout << "Search parameters: ef_con_s" << endl;
+    cout << "Search parameters: ef_search" << endl;
 
     // Initialize different config values
     const int SIZE = 3;
@@ -96,7 +96,7 @@ int main() {
     int ef_constructions[SIZE] = {21, 42, 75};
 
     const int SEARCH_SIZE = 2;
-    int ef_construction_searches[SEARCH_SIZE] = {300, 500};
+    int ef_searches[SEARCH_SIZE] = {300, 500};
 
     vector<double> search_durations;
     vector<long long> search_dist_comps;
@@ -193,12 +193,12 @@ int main() {
         }
 
         for (int j = 0; j < SEARCH_SIZE; ++j) {
-            config->ef_construction_search = ef_construction_searches[j];
+            config->ef_search = ef_searches[j];
             auto start = chrono::high_resolution_clock::now();
             dist_comps = 0;
 
             // Run query search
-            cout << "Searching with ef_con_s = " << ef_construction_searches[j] << endl;
+            cout << "Searching with ef_search = " << ef_searches[j] << endl;
             vector<vector<pair<float, int>>> results = return_queries(config, hnsw, queries);
             neighbors[i * SEARCH_SIZE + j] = results;
 
@@ -281,10 +281,10 @@ int main() {
         int max_con = max_connections[i / SEARCH_SIZE];
         int max_con_0 = max_connections_0[i / SEARCH_SIZE];
         int ef_con = ef_constructions[i / SEARCH_SIZE];
-        int ef_con_s = ef_construction_searches[i % SEARCH_SIZE];
+        int ef_s = ef_searches[i % SEARCH_SIZE];
 
         cout << "Results for construction parameters: " << opt_con << ", " << max_con << ", "
-            << max_con_0 << ", " << ef_con << " and search parameters: " << ef_con_s << endl;
+            << max_con_0 << ", " << ef_con << " and search parameters: " << ef_s << endl;
 
         // Setup export file per set of parameters
         if (EXPORT_RESULTS && i % SEARCH_SIZE == 0) {
@@ -346,7 +346,7 @@ int main() {
             << recall * 100 << "%)" << endl;
 
         if (EXPORT_RESULTS) {
-            *results_file << ef_con_s << ", " << search_dist_comps[i] / config->num_queries << ", "
+            *results_file << ef_s << ", " << search_dist_comps[i] / config->num_queries << ", "
                 << recall << ", " << search_durations[i] / config->num_queries << endl;
         }
     }
