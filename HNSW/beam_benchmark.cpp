@@ -17,12 +17,12 @@ const bool EXPORT_RESULTS = false;
 const string EXPORT_DIR = "exports/";
 const string EXPORT_NAME = "random_graph";
 
-void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nodes, int num_layers) {
+void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, vector<float*>& nodes, int num_nodes, int num_layers) {
     // Load node levels
     for (int i = 0; i < num_nodes; ++i) {
         int level;
         graph_file.read(reinterpret_cast<char*>(&level), sizeof(level));
-        nodes[i]->level = level;
+        hnsw->node_levels.push_back(level);
     }
 
     // Load edges
@@ -41,14 +41,14 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nod
             int num_neighbors;
             graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
 
-            vector<pair<float, Node*>>* neighbors = new vector<pair<float, Node*>>();
+            vector<pair<float, int>>* neighbors = new vector<pair<float, int>>();
             neighbors->reserve(num_neighbors);
             for (int k = 0; k < num_neighbors; ++k) {
                 int neighbor_index;
                 float distance;
                 graph_file.read(reinterpret_cast<char*>(&neighbor_index), sizeof(neighbor_index));
                 graph_file.read(reinterpret_cast<char*>(&distance), sizeof(distance));
-                neighbors->push_back(make_pair(distance, nodes[neighbor_index]));
+                neighbors->push_back(make_pair(distance, neighbor_index));
             }
 
             hnsw->layers[i]->mappings[node_index] = neighbors;
@@ -58,15 +58,15 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, Node** nodes, int num_nod
     // Load entry point
     int entry_point;
     graph_file.read(reinterpret_cast<char*>(&entry_point), sizeof(entry_point));
-    hnsw->entry_point = nodes[entry_point];
+    hnsw->entry_point = entry_point;
 }
 
-vector<vector<pair<float, Node*>>> return_queries(Config* config, HNSW* hnsw, Node** queries) {
-    vector<vector<pair<float, Node*>>> results;
+vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, vector<float*>& queries) {
+    vector<vector<pair<float, int>>> results;
     vector<int>* paths = new vector<int>[config->num_queries];
     for (int i = 0; i < config->num_queries; ++i) {
-        Node* query = queries[i];
-        vector<pair<float, Node*>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
+        pair<int, float*> query = make_pair(i, queries[i]);
+        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
         results.push_back(found);
     }
 
@@ -91,10 +91,12 @@ int main() {
     config->num_return = 20;
 
     // Get num_nodes amount of graph nodes
-    Node** nodes = get_nodes(config);
+    vector<float*> nodes;
+    load_nodes(config, nodes);
 
     // Generate num_queries amount of queries
-    Node** queries = get_queries(config, nodes);
+    vector<float*> queries;
+    load_queries(config, nodes, queries);
 
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
     cout << "Search parameters: ef_con_s" << endl;
@@ -115,7 +117,7 @@ int main() {
     search_dist_comps.reserve(SIZE * SEARCH_SIZE); 
 
     // Run HNSW with different ef_construction values
-    vector<vector<pair<float, Node*>>> neighbors[SIZE * SEARCH_SIZE];
+    vector<vector<pair<float, int>>> neighbors[SIZE * SEARCH_SIZE];
     vector<vector<int>> actual_neighbors;
     for (int i = 0; i < SIZE; ++i) {
         config->optimal_connections = optimal_connections[i];
@@ -195,7 +197,7 @@ int main() {
                 << config->optimal_connections << ", " << config->max_connections << ", "
                 << config->max_connections_0 << ", " << config->ef_construction << endl; 
             hnsw = init_hnsw(config, nodes);
-            insert_nodes(config, hnsw, nodes);
+            insert_nodes(config, hnsw);
 
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -210,7 +212,7 @@ int main() {
 
             // Run query search
             cout << "Searching with ef_con_s = " << ef_construction_searches[j] << endl;
-            vector<vector<pair<float, Node*>>> results = return_queries(config, hnsw, queries);
+            vector<vector<pair<float, int>>> results = return_queries(config, hnsw, queries);
             neighbors[i * SEARCH_SIZE + j] = results;
 
             auto end = chrono::high_resolution_clock::now();
@@ -239,7 +241,8 @@ int main() {
             for (int i = 0; i < config->num_queries; ++i) {
                 cout << "Neighbors in ideal case for query " << i << endl;
                 for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
-                    cout << actual_neighbors[i][j] << " (" << queries[i]->distance(nodes[actual_neighbors[i][j]]) << ") ";
+                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions);
+                    cout << actual_neighbors[i][j] << " (" << dist << ") ";
                 }
                 cout << endl;
             }
@@ -248,24 +251,23 @@ int main() {
         // Calcuate actual nearest neighbors per query
         auto start = chrono::high_resolution_clock::now();
         for (int i = 0; i < config->num_queries; ++i) {
-            Node* query = queries[i];
             actual_neighbors.push_back(vector<int>());
-            priority_queue<pair<float, Node*>> pq;
+            priority_queue<pair<float, int>> pq;
 
             for (int j = 0; j < config->num_nodes; ++j) {
-                pq.emplace(query->distance(nodes[j]), nodes[j]);
+                float dist = calculate_l2_sq(queries[i], nodes[j], config->dimensions);
+                pq.emplace(dist, j);
                 if (pq.size() > config->num_return)
                     pq.pop();
             }
 
             // Place actual nearest neighbors
-            actual_neighbors[i].reserve(config->num_return);
             actual_neighbors[i].resize(config->num_return);
 
             size_t idx = pq.size();
             while (idx > 0) {
                 --idx;
-                actual_neighbors[i][idx] = pq.top().second->index;
+                actual_neighbors[i][idx] = pq.top().second;
                 pq.pop();
             }
 
@@ -273,7 +275,8 @@ int main() {
             if (PRINT_NEIGHBORS) {
                 cout << "Neighbors in ideal case for query " << i << endl;
                 for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
-                    cout << actual_neighbors[i][j] << " (" << queries[i]->distance(nodes[actual_neighbors[i][j]]) << ") ";
+                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions);
+                    cout << actual_neighbors[i][j] << " (" << dist << ") ";
                 }
                 cout << endl;
             }
@@ -318,8 +321,8 @@ int main() {
 
             for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
                 auto n_pair = neighbors[i][j][k];
-                if (actual_set.find(n_pair.second->index) != actual_set.end()) {
-                    intersection.insert(n_pair.second->index);
+                if (actual_set.find(n_pair.second) != actual_set.end()) {
+                    intersection.insert(n_pair.second);
                 }
             }
             similar += intersection.size();
@@ -329,7 +332,7 @@ int main() {
                 cout << "Neighbors for query " << j << ": ";
                 for (size_t k = 0; k < neighbors[i][j].size(); ++k) {
                     auto n_pair = neighbors[i][j][k];
-                    cout << n_pair.second->index << " (" << n_pair.first << ") ";
+                    cout << n_pair.second << " (" << n_pair.first << ") ";
                 }
                 cout << endl;
             }
@@ -343,7 +346,8 @@ int main() {
                 }
                 for (size_t k = 0; k < actual_neighbors[j].size(); ++k) {
                     if (intersection.find(actual_neighbors[j][k]) == intersection.end()) {
-                        cout << actual_neighbors[j][k] << " (" << queries[j]->distance(nodes[actual_neighbors[j][k]]) << ") ";
+                        float dist = calculate_l2_sq(queries[j], nodes[actual_neighbors[j][k]], config->dimensions);
+                        cout << actual_neighbors[j][k] << " (" << dist << ") ";
                     }
                 }
                 cout << endl;
@@ -371,12 +375,10 @@ int main() {
     for (int i = 0; i < config->num_nodes; i++) {
         delete nodes[i];
     }
-    delete[] nodes;
 
     // Delete queries
     for (int i = 0; i < config->num_queries; ++i)
         delete queries[i];
-    delete[] queries;
 
     // Delete config
     delete config;

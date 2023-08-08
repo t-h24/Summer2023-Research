@@ -51,24 +51,9 @@ public:
     int debug_query_search_index = -1;
 };
 
-class Node {
-public:
-    int index;
-    int dimensions;
-    int level;
-    float* values;
-    std::ofstream* debug_file;
-
-    Node(int index, int dimensions, float* values);
-
-    float distance(Node* other);
-
-    ~Node();
-};
-
 class HNSWLayer {
 public:
-    std::map<int, std::vector<std::pair<float, Node*>>*> mappings;
+    std::map<int, std::vector<std::pair<float, int>>*> mappings;
 
     ~HNSWLayer();
 };
@@ -76,11 +61,12 @@ public:
 class HNSW {
 public:
     int node_size;
-    Node** nodes;
+    std::vector<float*>& nodes;
     std::vector<HNSWLayer*> layers;
-    Node* entry_point;
+    std::vector<int> node_levels;
+    int entry_point;
 
-    HNSW(int node_size, Node** nodes);
+    HNSW(int node_size, std::vector<float*>& nodes);
 
     int get_layers();
 
@@ -89,22 +75,22 @@ public:
 
 // Helper functions
 float calculate_l2_sq(float* a, float* b, int size);
-void load_fvecs(const std::string& file, const std::string& type, Node** nodes, int num, int dim, bool has_groundtruth);
+void load_fvecs(const std::string& file, const std::string& type, std::vector<float*>& nodes, int num, int dim, bool has_groundtruth);
 void load_ivecs(const std::string& file, std::vector<std::vector<int>>& results, int num, int dim);
 
 // Loading nodes
-Node** get_nodes(Config* config);
-Node** get_queries(Config* config, Node** graph_nodes);
+void load_nodes(Config* config, std::vector<float*>& nodes);
+void load_queries(Config* config, std::vector<float*>& nodes, std::vector<float*>& queries);
 
 // Main algorithms
-HNSW* insert(Config* config, HNSW* hnsw, Node* query, int est_con, int max_con, int ef_con, float normal_factor, std::function<double()> rand);
-void search_layer(Config* config, HNSW* hnsw, Node* query, std::vector<std::pair<float, Node*>>* entry_points, int num_to_return, int layer_num);
-std::vector<std::pair<float, Node*>> nn_search(Config* config, HNSW* hnsw, Node* query, int num_to_return, int ef_con, std::vector<int>& path);
+HNSW* insert(Config* config, HNSW* hnsw, int query, int est_con, int max_con, int ef_con, float normal_factor, std::function<double()> rand);
+void search_layer(Config* config, HNSW* hnsw, float* query, std::vector<std::pair<float, int>>& entry_points, int num_to_return, int layer_num);
+std::vector<std::pair<float, int>> nn_search(Config* config, HNSW* hnsw, std::pair<int, float*>& query, int num_to_return, int ef_con, std::vector<int>& path);
 
 // Executing HNSW
 bool sanity_checks(Config* config);
-HNSW* init_hnsw(Config* config, Node** nodes);
-void insert_nodes(Config* config, HNSW* hnsw, Node** nodes);
+HNSW* init_hnsw(Config* config, std::vector<float*>& nodes);
+void insert_nodes(Config* config, HNSW* hnsw);
 void print_hnsw(Config* config, HNSW* hnsw);
-void run_query_search(Config* config, HNSW* hnsw, Node** queries);
-void export_graph(Config* config, HNSW* hnsw, Node** nodes);
+void run_query_search(Config* config, HNSW* hnsw, std::vector<float*>& queries);
+void export_graph(Config* config, HNSW* hnsw, std::vector<float*>& nodes);

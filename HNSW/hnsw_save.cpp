@@ -22,7 +22,8 @@ int main() {
     config->export_queries = false;
 
     // Get num_nodes amount of graph nodes
-    Node** nodes = get_nodes(config);
+    vector<float*> nodes;
+    load_nodes(config, nodes);
 
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
 
@@ -54,7 +55,7 @@ int main() {
             << config->optimal_connections << ", " << config->max_connections << ", "
             << config->max_connections_0 << ", " << config->ef_construction << endl; 
         HNSW* hnsw = init_hnsw(config, nodes);
-        insert_nodes(config, hnsw, nodes);
+        insert_nodes(config, hnsw);
 
         auto end = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -66,7 +67,7 @@ int main() {
 
         // Export levels
         for (size_t i = 0; i < config->num_nodes; ++i) {
-            int index = nodes[i]->level;
+            int index = hnsw->node_levels[i];
             graph_file.write(reinterpret_cast<const char*>(&index), sizeof(index));
         }
 
@@ -88,7 +89,7 @@ int main() {
                 graph_file.write(reinterpret_cast<const char*>(&n_size), sizeof(n_size));
 
                 for (auto n_pair : *it->second) {
-                    int neighbor_index = n_pair.second->index;
+                    int neighbor_index = n_pair.second;
                     float distance = n_pair.first;
                     graph_file.write(reinterpret_cast<const char*>(&neighbor_index), sizeof(neighbor_index));
                     graph_file.write(reinterpret_cast<const char*>(&distance), sizeof(distance));
@@ -97,7 +98,7 @@ int main() {
         }
 
         // Save entry point
-        int entry_point = hnsw->entry_point->index;
+        int entry_point = hnsw->entry_point;
         graph_file.write(reinterpret_cast<const char*>(&entry_point), sizeof(entry_point));
         graph_file.close();
 
@@ -113,6 +114,11 @@ int main() {
         cout << "Exported graph to file" << endl;
 
         delete hnsw;
+    }
+
+    // Delete nodes
+    for (int i = 0; i < config->num_nodes; i++) {
+        delete nodes[i];
     }
 
     now = time(NULL);
