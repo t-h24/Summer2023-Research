@@ -544,7 +544,9 @@ void print_hnsw(Config* config, HNSW* hnsw) {
 
 void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     vector<vector<int>> paths(config->num_queries);
-    ofstream file(config->export_dir + "queries.txt");
+    ofstream* file = NULL;
+    if (config->export_queries)
+        file = new ofstream(config->export_dir + "queries.txt");
 
     bool use_groundtruth = config->groundtruth_file != "";
     if (use_groundtruth && config->query_file == "") {
@@ -628,16 +630,16 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         }
 
         if (config->export_queries) {
-            file << "Query " << i << endl << query.second[0];
+            *file << "Query " << i << endl << query.second[0];
             for (int dim = 1; dim < config->dimensions; ++dim)
-                file << "," << query.second[dim];
-            file << endl;
+                *file << "," << query.second[dim];
+            *file << endl;
             for (auto n_pair : found)
-                file << n_pair.second << ",";
-            file << endl;
+                *file << n_pair.second << ",";
+            *file << endl;
             for (int node : paths[i])
-                file << node << ",";
-            file << endl;
+                *file << node << ",";
+            *file << endl;
         }
     }
 
@@ -646,58 +648,41 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     }
 
     cout << "Finished search" << endl;
-
-    file.close();
+    if (file != NULL) {
+        file->close();
+        delete file;
+        cout << "Exported queries to " << config->export_dir << "queries.txt" << endl;
+    }
 }
 
 void export_graph(Config* config, HNSW* hnsw, float** nodes) {
     if (config->export_graph) {
-        /* TODO
-        auto level_comp = [](Node* a, Node* b) {
-            return a->level < b->level;
-        };
-        vector<Node*> nodes_vec(nodes, nodes + config->num_nodes);
-        sort(nodes_vec.begin(), nodes_vec.end(), level_comp);
         ofstream file(config->export_dir + "graph.txt");
+
+        // Export number of layers
+        file << hnsw->layers << endl;
 
         // Export nodes
         file << "Nodes" << endl;
-        int start_loc = 0;
-        bool skipped = false;
-        // Each level contains its nodes and all nodes from higher levels
-        for (int level = 0; level < hnsw->get_layers(); ++level) {
-            skipped = false;
-            file << "Level " << level << endl;
-            for (size_t i = start_loc; i < nodes_vec.size(); ++i) {
-                file << nodes_vec[i]->index << ": " << nodes_vec[i]->values[0];
-                for (int dim = 1; dim < config->dimensions; ++dim)
-                    file << "," << nodes_vec[i]->values[dim];
-                file << endl;
-
-                if (!skipped && nodes_vec[i]->level > level) {
-                    start_loc = i;
-                    skipped = true;
-                }
-            }
+        for (int i = 0; i < config->num_nodes; ++i) {
+            file << i << " " << hnsw->mappings[i].size() - 1 << ": " << nodes[i][0];
+            for (int dim = 1; dim < config->dimensions; ++dim)
+                file << "," << nodes[i][dim];
+            file << endl;
         }
 
         // Export edges
         file << "Edges" << endl;
-        for (int level = 0; level < hnsw->get_layers(); ++level) {
-            file << "Level " << level << endl;
-            HNSWLayer* layer = hnsw->layers[level];
-            
-            // Append neighbors of each node in a single line
-            for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
-                if (it->second->empty())
-                    continue;
-                file << it->first << ":";
-                for (auto n_pair : *it->second)
+        for (int i = 0; i < config->num_nodes; ++i) {
+            file << i << endl;
+            for (int level = 0; level < hnsw->mappings[i].size(); ++level) {
+                for (auto n_pair : hnsw->mappings[i][level])
                     file << n_pair.second << ",";
                 file << endl;
             }
         }
+
         file.close();
-        */
+        cout << "Exported graph to " << config->export_dir << "graph.txt" << endl;
     }
 }
