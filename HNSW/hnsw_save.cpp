@@ -65,21 +65,15 @@ int main() {
         // Export graph to file
         ofstream graph_file(EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin");
 
-        // Export levels
-        for (int i = 0; i < config->num_nodes; ++i) {
-            int index = hnsw->node_levels[i];
-            graph_file.write(reinterpret_cast<const char*>(&index), sizeof(index));
-        }
-
         // Export edges
         for (int i = 0; i < config->num_nodes; ++i) {
-            int levels = hnsw->node_levels[i] + 1;
+            int levels = hnsw->mappings[i].size();
 
             // Write level size
             graph_file.write(reinterpret_cast<const char*>(&levels), sizeof(levels));
 
             // Write level
-            for (int j = 0; j < hnsw->node_levels[i] + 1; ++j) {
+            for (int j = 0; j < levels; ++j) {
                 int num_neighbors = hnsw->mappings[i][j].size();
 
                 // Write number of neighbors

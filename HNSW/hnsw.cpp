@@ -265,7 +265,6 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
     
     // Get node level
     int node_level = -log(rand()) * normal_factor;
-    hnsw->node_levels[query] = node_level;
     hnsw->mappings[query].resize(node_level + 1);
 
     // Update layer count
@@ -499,11 +498,9 @@ bool sanity_checks(Config* config) {
 HNSW* init_hnsw(Config* config, float** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->mappings.resize(config->num_nodes);
-    hnsw->node_levels.resize(config->num_nodes);
 
     // Insert first node into first layer with empty connections vector
     hnsw->layers = 1;
-    hnsw->node_levels[0] = 0;
     hnsw->mappings[0].resize(1);
     hnsw->entry_point = 0;
     return hnsw;

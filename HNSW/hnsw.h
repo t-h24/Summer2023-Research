@@ -57,7 +57,6 @@ public:
     float** nodes;
     // This vector stores vectors by node index, then level, then connection pair
     std::vector<std::vector<std::vector<std::pair<float, int>>>> mappings;
-    std::vector<int> node_levels;
     int entry_point;
     int layers;
 

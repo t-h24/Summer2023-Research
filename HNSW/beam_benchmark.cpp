@@ -18,13 +18,6 @@ const string EXPORT_DIR = "exports/";
 const string EXPORT_NAME = "random_graph";
 
 void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_nodes, int num_layers) {
-    // Load node levels
-    for (int i = 0; i < num_nodes; ++i) {
-        int level;
-        graph_file.read(reinterpret_cast<char*>(&level), sizeof(level));
-        hnsw->node_levels.push_back(level);
-    }
-
     // Load node neighbors
     for (int i = 0; i < num_nodes; ++i) {
         int levels;
