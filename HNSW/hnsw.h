@@ -53,9 +53,7 @@ public:
 
 class HNSWLayer {
 public:
-    std::map<int, std::vector<std::pair<float, int>>*> mappings;
-
-    ~HNSWLayer();
+    std::map<int, std::vector<std::pair<float, int>>> mappings;
 };
 
 class HNSW {

@@ -41,17 +41,15 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, vector<float*>& nodes, in
             int num_neighbors;
             graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
 
-            vector<pair<float, int>>* neighbors = new vector<pair<float, int>>();
-            neighbors->reserve(num_neighbors);
+            vector<pair<float, int>>& neighbors = hnsw->layers[i]->mappings[node_index];
+            neighbors.reserve(num_neighbors);
             for (int k = 0; k < num_neighbors; ++k) {
                 int neighbor_index;
                 float distance;
                 graph_file.read(reinterpret_cast<char*>(&neighbor_index), sizeof(neighbor_index));
                 graph_file.read(reinterpret_cast<char*>(&distance), sizeof(distance));
-                neighbors->push_back(make_pair(distance, neighbor_index));
+                neighbors.push_back(make_pair(distance, neighbor_index));
             }
-
-            hnsw->layers[i]->mappings[node_index] = neighbors;
         }
     }
 

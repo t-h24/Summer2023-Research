@@ -85,10 +85,10 @@ int main() {
                 graph_file.write(reinterpret_cast<const char*>(&node_index), sizeof(node_index));
 
                 // Write neighbor size
-                int n_size = it->second->size();
+                int n_size = it->second.size();
                 graph_file.write(reinterpret_cast<const char*>(&n_size), sizeof(n_size));
 
-                for (auto n_pair : *it->second) {
+                for (auto n_pair : it->second) {
                     int neighbor_index = n_pair.second;
                     float distance = n_pair.first;
                     graph_file.write(reinterpret_cast<const char*>(&neighbor_index), sizeof(neighbor_index));
