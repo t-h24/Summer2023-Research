@@ -17,7 +17,7 @@ int main() {
         return 1;
 
     // Get num_nodes amount of graph nodes
-    vector<float*> nodes;
+    float** nodes = new float*[config->num_nodes];
     load_nodes(config, nodes);
     cout << "Beginning HNSW construction" << endl;
 
@@ -29,7 +29,7 @@ int main() {
     print_hnsw(config, hnsw);
     
     // Generate num_queries amount of queries
-    vector<float*> queries;
+    float** queries = new float*[config->num_queries];
     load_queries(config, nodes, queries);
     cout << "Beginning search" << endl;
 
@@ -54,13 +54,14 @@ int main() {
     export_graph(config, hnsw, nodes);
 
     // Delete nodes
-    for (int i = 0; i < config->num_nodes; i++) {
+    for (int i = 0; i < config->num_nodes; i++)
         delete nodes[i];
-    }
+    delete[] nodes;
 
     // Delete queries
     for (int i = 0; i < config->num_queries; ++i)
         delete queries[i];
+    delete[] queries;
 
     // Delete hnsw and config
     delete hnsw;

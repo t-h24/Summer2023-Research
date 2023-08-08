@@ -22,7 +22,7 @@ int main() {
     config->export_queries = false;
 
     // Get num_nodes amount of graph nodes
-    vector<float*> nodes;
+    float** nodes = new float*[config->num_nodes];
     load_nodes(config, nodes);
 
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
@@ -117,9 +117,9 @@ int main() {
     }
 
     // Delete nodes
-    for (int i = 0; i < config->num_nodes; i++) {
+    for (int i = 0; i < config->num_nodes; i++)
         delete nodes[i];
-    }
+    delete[] nodes;
 
     now = time(NULL);
     cout << "HNSW save run ended at " << ctime(&now);

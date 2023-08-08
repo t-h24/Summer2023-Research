@@ -10,7 +10,7 @@ using namespace std;
 
 long long int dist_comps = 0;
 
-HNSW::HNSW(int node_size, vector<float*>& nodes) : node_size(node_size), nodes(nodes) {}
+HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes) {}
 
 int HNSW::get_layers() {
     return layers.size();
@@ -60,7 +60,7 @@ float calculate_l2_sq(float* a, float* b, int size) {
     return sum[0] + remainder;
 }
 
-void load_fvecs(const string& file, const string& type, vector<float*>& nodes, int num, int dim, bool has_groundtruth) {
+void load_fvecs(const string& file, const string& type, float** nodes, int num, int dim, bool has_groundtruth) {
     ifstream f(file, ios::binary | ios::in);
     if (!f) {
         cout << "File " << file << " not found!" << endl;
@@ -88,7 +88,6 @@ void load_fvecs(const string& file, const string& type, vector<float*>& nodes, i
         exit(-1);
     }
 
-    nodes.resize(num);
     f.seekg(0, ios::beg);
     for (int i = 0; i < num; i++) {
         // Skip dimension size
@@ -142,7 +141,7 @@ void load_ivecs(const string& file, vector<vector<int>>& results, int num, int n
     f.close();
 }
 
-void load_nodes(Config* config, vector<float*>& nodes) {
+void load_nodes(Config* config, float** nodes) {
     if (config->load_file != "") {
         if (config->load_file.size() >= 6 && config->load_file.substr(config->load_file.size() - 6) == ".fvecs") {
             // Load nodes from fvecs file
@@ -158,7 +157,6 @@ void load_nodes(Config* config, vector<float*>& nodes) {
         }
         cout << "Loading " << config->num_nodes << " nodes from file " << config->load_file << endl;
 
-        nodes.resize(config->num_nodes);
         for (int i = 0; i < config->num_nodes; i++) {
             nodes[i] = new float[config->dimensions];
             for (int j = 0; j < config->dimensions; j++) {
@@ -175,7 +173,6 @@ void load_nodes(Config* config, vector<float*>& nodes) {
     mt19937 gen(config->graph_seed);
     uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
 
-    nodes.resize(config->num_nodes);
     for (int i = 0; i < config->num_nodes; i++) {
         nodes[i] = new float[config->dimensions];
         for (int j = 0; j < config->dimensions; j++) {
@@ -184,7 +181,7 @@ void load_nodes(Config* config, vector<float*>& nodes) {
     }
 }
 
-void load_queries(Config* config, vector<float*>& nodes, vector<float*>& queries) {
+void load_queries(Config* config, float** nodes, float** queries) {
     mt19937 gen(config->query_seed);
     if (config->query_file != "") {
         if (config->query_file.size() >= 6 && config->query_file.substr(config->query_file.size() - 6) == ".fvecs") {
@@ -201,7 +198,6 @@ void load_queries(Config* config, vector<float*>& nodes, vector<float*>& queries
         }
         cout << "Loading " << config->num_queries << " queries from file " << config->query_file << endl;
 
-        queries.resize(config->num_queries);
         for (int i = 0; i < config->num_queries; i++) {
             queries[i] = new float[config->dimensions];
             for (int j = 0; j < config->dimensions; j++) {
@@ -218,7 +214,6 @@ void load_queries(Config* config, vector<float*>& nodes, vector<float*>& queries
         cout << "Generating " << config->num_queries << " random queries" << endl;
         uniform_real_distribution<float> dis(config->gen_min, config->gen_max);
 
-        queries.resize(config->num_queries);
         for (int i = 0; i < config->num_queries; i++) {
             queries[i] = new float[config->dimensions];
             for (int j = 0; j < config->dimensions; j++) {
@@ -253,7 +248,6 @@ void load_queries(Config* config, vector<float*>& nodes, vector<float*>& queries
     }
 
     // Generate queries based on the range of values in each dimension
-    queries.resize(config->num_queries);
     for (int i = 0; i < config->num_queries; i++) {
         queries[i] = new float[config->dimensions];
         for (int j = 0; j < config->dimensions; j++) {
@@ -513,7 +507,7 @@ bool sanity_checks(Config* config) {
     return true;
 }
 
-HNSW* init_hnsw(Config* config, vector<float*>& nodes) {
+HNSW* init_hnsw(Config* config, float** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
     hnsw->layers.push_back(new HNSWLayer());
     hnsw->node_levels.resize(config->num_nodes);
@@ -559,7 +553,7 @@ void print_hnsw(Config* config, HNSW* hnsw) {
     }
 }
 
-void run_query_search(Config* config, HNSW* hnsw, vector<float*>& queries) {
+void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     vector<int>* paths = new vector<int>[config->num_queries];
     ofstream file(config->export_dir + "queries.txt");
 
@@ -667,7 +661,7 @@ void run_query_search(Config* config, HNSW* hnsw, vector<float*>& queries) {
     delete[] paths;
 }
 
-void export_graph(Config* config, HNSW* hnsw, vector<float*>& nodes) {
+void export_graph(Config* config, HNSW* hnsw, float** nodes) {
     if (config->export_graph) {
         /* TODO
         auto level_comp = [](Node* a, Node* b) {

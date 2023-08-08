@@ -17,7 +17,7 @@ const bool EXPORT_RESULTS = false;
 const string EXPORT_DIR = "exports/";
 const string EXPORT_NAME = "random_graph";
 
-void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, vector<float*>& nodes, int num_nodes, int num_layers) {
+void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_nodes, int num_layers) {
     // Load node levels
     for (int i = 0; i < num_nodes; ++i) {
         int level;
@@ -59,7 +59,7 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, vector<float*>& nodes, in
     hnsw->entry_point = entry_point;
 }
 
-vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, vector<float*>& queries) {
+vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, float** queries) {
     vector<vector<pair<float, int>>> results;
     vector<int>* paths = new vector<int>[config->num_queries];
     for (int i = 0; i < config->num_queries; ++i) {
@@ -89,11 +89,11 @@ int main() {
     config->num_return = 20;
 
     // Get num_nodes amount of graph nodes
-    vector<float*> nodes;
+    float** nodes = new float*[config->num_nodes];
     load_nodes(config, nodes);
 
     // Generate num_queries amount of queries
-    vector<float*> queries;
+    float** queries = new float*[config->num_queries];
     load_queries(config, nodes, queries);
 
     cout << "Construction parameters: opt_con, max_con, max_con_0, ef_con" << endl;
@@ -370,13 +370,14 @@ int main() {
     }
 
     // Delete nodes
-    for (int i = 0; i < config->num_nodes; i++) {
+    for (int i = 0; i < config->num_nodes; i++)
         delete nodes[i];
-    }
+    delete[] nodes;
 
     // Delete queries
     for (int i = 0; i < config->num_queries; ++i)
         delete queries[i];
+    delete[] queries;
 
     // Delete config
     delete config;
