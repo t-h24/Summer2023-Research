@@ -8,6 +8,7 @@
 #include <functional>
 
 extern long long int dist_comps;
+extern std::ofstream* debug_file;
 
 class Config {
 public:
@@ -42,8 +43,8 @@ public:
     bool print_total_found = true;
 
     bool debug_insert = false;
-    bool debug_graph = false;
     bool debug_search = false;
+    bool print_graph = false;
 
     bool export_graph = false;
     bool export_queries = false;

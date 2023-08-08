@@ -70,8 +70,10 @@ int main() {
     Config* config = new Config();
 
     // Setup config
+    config->print_graph = false;
     config->export_graph = false;
     config->export_queries = false;
+    config->debug_query_search_index = -1;
     config->num_queries = 100;
     config->num_return = 20;
 

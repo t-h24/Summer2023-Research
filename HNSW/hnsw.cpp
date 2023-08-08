@@ -9,6 +9,7 @@
 using namespace std;
 
 long long int dist_comps = 0;
+ofstream* debug_file = NULL;
 
 HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
@@ -356,29 +357,27 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
 
     int iteration = 0;
     while (!candidates.empty()) {
-        /* TODO
-        if (query->debug_file != NULL && layer_num == 0) {
+        if (debug_file != NULL) {
             // Export search data
-            *query->debug_file << "Iteration " << iteration << endl;
+            *debug_file << "Iteration " << iteration << endl;
             for (int index : visited)
-                *query->debug_file << index << ",";
-            *query->debug_file << endl;
+                *debug_file << index << ",";
+            *debug_file << endl;
 
             priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
-                *query->debug_file << temp_candidates.top().second << ",";
+                *debug_file << temp_candidates.top().second << ",";
                 temp_candidates.pop();
             }
-            *query->debug_file << endl;
+            *debug_file << endl;
 
             priority_queue<pair<float, int>> temp_found(found);
             while (!temp_found.empty()) {
-                *query->debug_file << temp_found.top().second << ",";
+                *debug_file << temp_found.top().second << ",";
                 temp_found.pop();
             }
-            *query->debug_file << endl;
+            *debug_file << endl;
         }
-        */
         ++iteration;
 
         // Get and remove closest element in candiates to query
@@ -457,7 +456,16 @@ vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>
             cout << "Closest point at level " << level << " is " << entry_points[0].second << " (" << entry_points[0].first << ")" << endl;
     }
 
+    if (config->debug_query_search_index == query.first) {
+        debug_file = new ofstream(config->export_dir + "query_search.txt");
+    }
     search_layer(config, hnsw, query.second, entry_points, ef_con, 0);
+    if (config->debug_query_search_index == query.first) {
+        debug_file->close();
+        delete debug_file;
+        debug_file = NULL;
+        cout << "Exported query search data to " << config->export_dir << "query_search.txt for query " << query.first << endl;
+    }
 
     if (config->debug_search) {
         cout << "All closest points at level 0 are ";
@@ -521,25 +529,31 @@ void insert_nodes(Config* config, HNSW* hnsw) {
 }
 
 void print_hnsw(Config* config, HNSW* hnsw) {
-    /* TODO
-    if (config->debug_graph) {
-        cout << "Nodes per layer: " << endl;
-        for (int i = 0; i < hnsw->get_layers(); i++) {
-            cout << "Level " << i << ": " << hnsw->layers[i]->mappings.size() << endl;
+    if (config->print_graph) {
+        vector<int> nodes_per_layer(hnsw->layers);
+        for (int i = 0; i < config->num_nodes; ++i) {
+            for (int j = 0; j < hnsw->mappings[i].size(); ++j)
+                ++nodes_per_layer[j];
         }
+
+        cout << "Nodes per layer: " << endl;
+        for (int i = 0; i < hnsw->layers; ++i)
+            cout << "Level " << i << ": " << nodes_per_layer[i] << endl;
         cout << endl;
 
-        for (int i = hnsw->layers.size() - 1; i >= 0; i--) {
+        for (int i = 0; i < hnsw->layers; ++i) {
             cout << "Layer " << i << " connections: " << endl;
-            for (auto const& mapping : hnsw->layers[i]->mappings) {
-                cout << mapping.first << ": ";
-                for (auto n_pair : mapping.second)
+            for (int j = 0; j < config->num_nodes; ++j) {
+                if (hnsw->mappings[j].size() <= i)
+                    continue;
+
+                cout << j << ": ";
+                for (auto n_pair : hnsw->mappings[j][i])
                     cout << n_pair.second << " ";
                 cout << endl;
             }
         }
     }
-    */
 }
 
 void run_query_search(Config* config, HNSW* hnsw, float** queries) {
