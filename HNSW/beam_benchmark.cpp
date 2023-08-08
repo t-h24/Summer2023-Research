@@ -56,14 +56,13 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_no
 
 vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, float** queries) {
     vector<vector<pair<float, int>>> results;
-    vector<int>* paths = new vector<int>[config->num_queries];
+    vector<vector<int>> paths(config->num_queries);
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
         vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_construction_search, paths[i]);
         results.push_back(found);
     }
 
-    delete[] paths;
     return results;
 }
 
@@ -243,8 +242,8 @@ int main() {
     } else {
         // Calcuate actual nearest neighbors per query
         auto start = chrono::high_resolution_clock::now();
+        actual_neighbors.resize(config->num_queries);
         for (int i = 0; i < config->num_queries; ++i) {
-            actual_neighbors.push_back(vector<int>());
             priority_queue<pair<float, int>> pq;
 
             for (int j = 0; j < config->num_nodes; ++j) {

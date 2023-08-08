@@ -546,7 +546,7 @@ void print_hnsw(Config* config, HNSW* hnsw) {
 }
 
 void run_query_search(Config* config, HNSW* hnsw, float** queries) {
-    vector<int>* paths = new vector<int>[config->num_queries];
+    vector<vector<int>> paths(config->num_queries);
     ofstream file(config->export_dir + "queries.txt");
 
     bool use_groundtruth = config->groundtruth_file != "";
@@ -558,6 +558,8 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     vector<vector<int>> actual_neighbors;
     if (use_groundtruth)
         load_ivecs(config->groundtruth_file, actual_neighbors, config->num_queries, config->num_return);
+    else
+        actual_neighbors.resize(config->num_queries);
 
     int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
@@ -583,7 +585,6 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         if (config->print_actual || config->print_indiv_found || config->print_total_found) {
             if (!use_groundtruth) {
                 // Get actual nearest neighbors
-                actual_neighbors.push_back(vector<int>());
                 priority_queue<pair<float, int>> pq;
                 for (int j = 0; j < config->num_nodes; ++j) {
                     float dist = calculate_l2_sq(query.second, hnsw->nodes[j], config->dimensions);
@@ -650,7 +651,6 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     cout << "Finished search" << endl;
 
     file.close();
-    delete[] paths;
 }
 
 void export_graph(Config* config, HNSW* hnsw, float** nodes) {
