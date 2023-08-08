@@ -51,24 +51,17 @@ public:
     int debug_query_search_index = -1;
 };
 
-class HNSWLayer {
-public:
-    std::map<int, std::vector<std::pair<float, int>>> mappings;
-};
-
 class HNSW {
 public:
     int node_size;
     float** nodes;
-    std::vector<HNSWLayer*> layers;
+    // This vector stores vectors by node index, then level, then connection pair
+    std::vector<std::vector<std::vector<std::pair<float, int>>>> mappings;
     std::vector<int> node_levels;
     int entry_point;
+    int layers;
 
     HNSW(int node_size, float** nodes);
-
-    int get_layers();
-
-    ~HNSW();
 };
 
 // Helper functions

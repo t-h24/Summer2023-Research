@@ -25,30 +25,25 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_no
         hnsw->node_levels.push_back(level);
     }
 
-    // Load edges
-    for (int i = 1; i < num_layers; ++i) {
-        HNSWLayer* layer = new HNSWLayer();
-        hnsw->layers.push_back(layer);
-    }
-    for (int i = 0; i < num_layers; ++i) {
-        int num_entries;
-        graph_file.read(reinterpret_cast<char*>(&num_entries), sizeof(num_entries));
+    // Load node neighbors
+    for (int i = 0; i < num_nodes; ++i) {
+        int levels;
+        graph_file.read(reinterpret_cast<char*>(&levels), sizeof(levels));
+        hnsw->mappings[i].resize(levels);
 
-        for (int j = 0; j < num_entries; ++j) {
-            int node_index;
-            graph_file.read(reinterpret_cast<char*>(&node_index), sizeof(node_index));
-
+        // Load level
+        for (int j = 0; j < levels; ++j) {
             int num_neighbors;
             graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
+            hnsw->mappings[i][j].reserve(num_neighbors);
 
-            vector<pair<float, int>>& neighbors = hnsw->layers[i]->mappings[node_index];
-            neighbors.reserve(num_neighbors);
+            // Load neighbors
             for (int k = 0; k < num_neighbors; ++k) {
-                int neighbor_index;
+                int index;
                 float distance;
-                graph_file.read(reinterpret_cast<char*>(&neighbor_index), sizeof(neighbor_index));
+                graph_file.read(reinterpret_cast<char*>(&index), sizeof(index));
                 graph_file.read(reinterpret_cast<char*>(&distance), sizeof(distance));
-                neighbors.push_back(make_pair(distance, neighbor_index));
+                hnsw->mappings[i][j].emplace_back(distance, index);
             }
         }
     }
@@ -150,12 +145,12 @@ int main() {
             int opt_con, max_con, max_con_0, ef_con;
             int num_nodes;
             int num_layers;
-            long long dist_comps;
+            long long construct_dist_comps;
             double construct_duration;
             info_file >> opt_con >> max_con >> max_con_0 >> ef_con;
             info_file >> num_nodes;
             info_file >> num_layers;
-            info_file >> dist_comps;
+            info_file >> construct_dist_comps;
             info_file >> construct_duration;
 
             // Check if number of nodes match
@@ -179,14 +174,14 @@ int main() {
                 << config->max_connections_0 << ", " << config->ef_construction << endl;
 
             hnsw = init_hnsw(config, nodes);
-            hnsw->layers[0]->mappings.clear();
+            hnsw->layers = num_layers;
             load_hnsw_graph(hnsw, graph_file, nodes, num_nodes, num_layers);
 
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Load time: " << duration / 1000.0 << " seconds" << endl;
             cout << "Construction time: " << construct_duration << " seconds" << endl;
-            cout << "Distance computations: " << dist_comps << endl;
+            cout << "Distance computations: " << construct_dist_comps << endl;
         } else {
             // Insert nodes into HNSW
             auto start = chrono::high_resolution_clock::now();

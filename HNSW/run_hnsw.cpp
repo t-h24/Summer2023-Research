@@ -43,7 +43,7 @@ int main() {
     // Run query search and print results
     run_query_search(config, hnsw, queries);
 
-    /*
+    /* TODO
     if (config->debug_query_search_index >= 0) {
        queries[config->debug_query_search_index]->debug_file->close();
        delete queries[config->debug_query_search_index]->debug_file;

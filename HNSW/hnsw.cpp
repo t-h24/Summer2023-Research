@@ -10,17 +10,7 @@ using namespace std;
 
 long long int dist_comps = 0;
 
-HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes) {}
-
-int HNSW::get_layers() {
-    return layers.size();
-}
-
-HNSW::~HNSW() {
-    for (size_t i = 0; i < layers.size(); i++) {
-        delete layers[i];
-    }
-}
+HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
 float calculate_l2_sq(float* a, float* b, int size) {
     ++dist_comps;
@@ -271,24 +261,22 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
     entry_points.reserve(ef_con);
     float dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[hnsw->entry_point], config->dimensions);
     entry_points.push_back(make_pair(dist, hnsw->entry_point));
-    int top = hnsw->get_layers() - 1;
+    int top = hnsw->layers - 1;
     
     // Get node level
     int node_level = -log(rand()) * normal_factor;
     hnsw->node_levels[query] = node_level;
+    hnsw->mappings[query].resize(node_level + 1);
+
+    // Update layer count
+    if (node_level > top) {
+        hnsw->layers = node_level + 1;
+        if (config->debug_insert)
+            cout << "Layer count increased to " << hnsw->layers << endl;
+    }
 
     if (config->debug_insert)
         cout << "Inserting node " << query << " at level " << node_level << " with entry point " << entry_points[0].second << endl;
-
-    // Add layers if needed
-    if (node_level > top)
-        for (int i = top + 1; i <= node_level; i++) {
-            if (config->debug_insert)
-                cout << "Adding layer " << i << endl;
-
-            HNSWLayer* layer = new HNSWLayer();
-            hnsw->layers.push_back(layer);
-        }
 
     // Get closest element by using search_layer to find the closest point at each level
     for (int level = top; level >= node_level + 1; level--) {
@@ -306,7 +294,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
         search_layer(config, hnsw, hnsw->nodes[query], entry_points, ef_con, level);
 
         // Initialize mapping vector
-        vector<pair<float, int>>& neighbors = hnsw->layers[level]->mappings[query];
+        vector<pair<float, int>>& neighbors = hnsw->mappings[query][level];
         neighbors.reserve(max_con + 1);
         neighbors.resize(min(opt_con, (int)entry_points.size()));
 
@@ -322,7 +310,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
 
         //Connect neighbors to this node
         for (auto n_pair : neighbors) {
-            vector<pair<float, int>>& neighbor_mapping = hnsw->layers[level]->mappings[n_pair.second];
+            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][level];
 
             // Place query in correct position in neighbor_mapping
             float new_dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[n_pair.second], config->dimensions);
@@ -333,9 +321,10 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
 
         // Trim neighbor connections if needed
         for (auto n_pair : neighbors) {
-            if (hnsw->layers[level]->mappings[n_pair.second].size() > max_con) {
-                // Pop last element
-                hnsw->layers[level]->mappings[n_pair.second].pop_back();
+            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][level];
+            if (neighbor_mapping.size() > max_con) {
+                // Pop last element (size will be max_con after this)
+                neighbor_mapping.pop_back();
             }
         }
     }
@@ -407,7 +396,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
             break;
 
         // Get neighbors of closest in HNSWLayer
-        vector<pair<float, int>>& neighbors = hnsw->layers[layer_num]->mappings[closest];
+        vector<pair<float, int>>& neighbors = hnsw->mappings[closest][layer_num];
 
         for (auto n_pair : neighbors) {
             int neighbor = n_pair.second;
@@ -455,7 +444,7 @@ vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>
     entry_points.reserve(ef_con);
     float dist = calculate_l2_sq(query.second, hnsw->nodes[hnsw->entry_point], config->dimensions);
     entry_points.push_back(make_pair(dist, hnsw->entry_point));
-    int top = hnsw->get_layers() - 1;
+    int top = hnsw->layers - 1;
 
     if (config->debug_search)
         cout << "Searching for " << num_to_return << " nearest neighbors of node " << query.first << endl;
@@ -509,12 +498,13 @@ bool sanity_checks(Config* config) {
 
 HNSW* init_hnsw(Config* config, float** nodes) {
     HNSW* hnsw = new HNSW(config->num_nodes, nodes);
-    hnsw->layers.push_back(new HNSWLayer());
+    hnsw->mappings.resize(config->num_nodes);
     hnsw->node_levels.resize(config->num_nodes);
 
-    // Insert first node into first layer with no connections (empty vector is inserted)
+    // Insert first node into first layer with empty connections vector
+    hnsw->layers = 1;
     hnsw->node_levels[0] = 0;
-    hnsw->layers[0]->mappings.insert(pair<int, vector<pair<float, int>>>(0, vector<pair<float, int>>()));
+    hnsw->mappings[0].resize(1);
     hnsw->entry_point = 0;
     return hnsw;
 }
@@ -534,6 +524,7 @@ void insert_nodes(Config* config, HNSW* hnsw) {
 }
 
 void print_hnsw(Config* config, HNSW* hnsw) {
+    /* TODO
     if (config->debug_graph) {
         cout << "Nodes per layer: " << endl;
         for (int i = 0; i < hnsw->get_layers(); i++) {
@@ -551,6 +542,7 @@ void print_hnsw(Config* config, HNSW* hnsw) {
             }
         }
     }
+    */
 }
 
 void run_query_search(Config* config, HNSW* hnsw, float** queries) {

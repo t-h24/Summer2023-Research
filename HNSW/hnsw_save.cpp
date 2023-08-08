@@ -66,40 +66,38 @@ int main() {
         ofstream graph_file(EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin");
 
         // Export levels
-        for (size_t i = 0; i < config->num_nodes; ++i) {
+        for (int i = 0; i < config->num_nodes; ++i) {
             int index = hnsw->node_levels[i];
             graph_file.write(reinterpret_cast<const char*>(&index), sizeof(index));
         }
 
         // Export edges
-        for (int level = 0; level < hnsw->get_layers(); ++level) {
-            HNSWLayer* layer = hnsw->layers[level];
+        for (int i = 0; i < config->num_nodes; ++i) {
+            int levels = hnsw->node_levels[i] + 1;
 
-            // Write entry size
-            int entry_size = layer->mappings.size();
-            graph_file.write(reinterpret_cast<const char*>(&entry_size), sizeof(entry_size));
-            
-            // Add all neighbor mappings, even empty ones to keep the graph structure 
-            for (auto it = layer->mappings.begin(); it != layer->mappings.end(); ++it) {
-                int node_index = it->first;
-                graph_file.write(reinterpret_cast<const char*>(&node_index), sizeof(node_index));
+            // Write level size
+            graph_file.write(reinterpret_cast<const char*>(&levels), sizeof(levels));
 
-                // Write neighbor size
-                int n_size = it->second.size();
-                graph_file.write(reinterpret_cast<const char*>(&n_size), sizeof(n_size));
+            // Write level
+            for (int j = 0; j < hnsw->node_levels[i] + 1; ++j) {
+                int num_neighbors = hnsw->mappings[i][j].size();
 
-                for (auto n_pair : it->second) {
-                    int neighbor_index = n_pair.second;
-                    float distance = n_pair.first;
-                    graph_file.write(reinterpret_cast<const char*>(&neighbor_index), sizeof(neighbor_index));
-                    graph_file.write(reinterpret_cast<const char*>(&distance), sizeof(distance));
+                // Write number of neighbors
+                graph_file.write(reinterpret_cast<const char*>(&num_neighbors), sizeof(num_neighbors));
+
+                // Write neighbors
+                for (int k = 0; k < num_neighbors; ++k) {
+                    auto n_pair = hnsw->mappings[i][j][k];
+                    
+                    // Write index and distance
+                    graph_file.write(reinterpret_cast<const char*>(&n_pair.second), sizeof(n_pair.second));
+                    graph_file.write(reinterpret_cast<const char*>(&n_pair.first), sizeof(n_pair.first));
                 }
             }
         }
 
         // Save entry point
-        int entry_point = hnsw->entry_point;
-        graph_file.write(reinterpret_cast<const char*>(&entry_point), sizeof(entry_point));
+        graph_file.write(reinterpret_cast<const char*>(&hnsw->entry_point), sizeof(hnsw->entry_point));
         graph_file.close();
 
         // Export construction parameters
@@ -107,7 +105,7 @@ int main() {
         info_file << config->optimal_connections << " " << config->max_connections << " "
             << config->max_connections_0 << " " << config->ef_construction << endl;
         info_file << config->num_nodes << endl;
-        info_file << hnsw->get_layers() << endl;
+        info_file << hnsw->layers << endl;
         info_file << dist_comps << endl;
         info_file << duration / 1000.0 << endl;
 
