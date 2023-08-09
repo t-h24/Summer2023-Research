@@ -20,6 +20,7 @@ int main() {
     // Setup config
     config->export_graph = false;
     config->export_queries = false;
+    config->debug_query_search_index = -1;
 
     // Get num_nodes amount of graph nodes
     float** nodes = new float*[config->num_nodes];
@@ -103,7 +104,7 @@ int main() {
         info_file << dist_comps << endl;
         info_file << duration / 1000.0 << endl;
 
-        cout << "Exported graph to file" << endl;
+        cout << "Exported graph to " << EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin" << endl;
 
         delete hnsw;
     }
