@@ -115,7 +115,7 @@ void load_ivecs(const string& file, vector<vector<int>>& results, int num, int n
         exit(-1);
     }
 
-    results.resize(num);
+    results.reserve(num);
     f.seekg(0, ios::beg);
     for (int i = 0; i < num; i++) {
         // Skip list size
@@ -124,7 +124,7 @@ void load_ivecs(const string& file, vector<vector<int>>& results, int num, int n
         // Read point
         int values[num_return];
         f.read(reinterpret_cast<char*>(values), num_return * 4);
-        results[i] = vector<int>(values, values + num_return);
+        results.push_back(vector<int>(values, values + num_return));
 
         // Skip remaining values
         f.seekg((width - num_return) * 4, ios::cur);

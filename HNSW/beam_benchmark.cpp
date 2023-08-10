@@ -47,16 +47,13 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_no
     hnsw->entry_point = entry_point;
 }
 
-vector<vector<pair<float, int>>> return_queries(Config* config, HNSW* hnsw, float** queries) {
-    vector<vector<pair<float, int>>> results;
+void return_queries(Config* config, HNSW* hnsw, float** queries, vector<vector<pair<float, int>>>& results) {
+    results.reserve(config->num_queries);
     vector<vector<int>> paths(config->num_queries);
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
-        vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
-        results.push_back(found);
+        results.emplace_back(nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]));
     }
-
-    return results;
 }
 
 /**
@@ -101,7 +98,7 @@ int main() {
     vector<double> search_durations;
     vector<long long> search_dist_comps;
     search_durations.reserve(SIZE * SEARCH_SIZE);
-    search_dist_comps.reserve(SIZE * SEARCH_SIZE); 
+    search_dist_comps.reserve(SIZE * SEARCH_SIZE);
 
     // Run HNSW with different ef_construction values
     vector<vector<pair<float, int>>> neighbors[SIZE * SEARCH_SIZE];
@@ -111,6 +108,7 @@ int main() {
         config->max_connections = max_connections[i];
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
+        config->ef_search = config->num_return;
         dist_comps = 0;
 
         // Sanity checks
@@ -193,14 +191,20 @@ int main() {
         }
 
         for (int j = 0; j < SEARCH_SIZE; ++j) {
+            if (ef_searches[j] < config->num_return) {
+                cout << "Warning: Skipping ef_search = " << ef_searches[j] << " which is less than num_return" << endl;
+                search_durations.push_back(0);
+                search_dist_comps.push_back(0);
+                continue;
+            }
+
             config->ef_search = ef_searches[j];
             auto start = chrono::high_resolution_clock::now();
             dist_comps = 0;
 
             // Run query search
             cout << "Searching with ef_search = " << ef_searches[j] << endl;
-            vector<vector<pair<float, int>>> results = return_queries(config, hnsw, queries);
-            neighbors[i * SEARCH_SIZE + j] = results;
+            return_queries(config, hnsw, queries, neighbors[i * SEARCH_SIZE + j]);
 
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
@@ -283,9 +287,6 @@ int main() {
         int ef_con = ef_constructions[i / SEARCH_SIZE];
         int ef_s = ef_searches[i % SEARCH_SIZE];
 
-        cout << "Results for construction parameters: " << opt_con << ", " << max_con << ", "
-            << max_con_0 << ", " << ef_con << " and search parameters: " << ef_s << endl;
-
         // Setup export file per set of parameters
         if (EXPORT_RESULTS && i % SEARCH_SIZE == 0) {
             if (results_file != NULL) {
@@ -299,6 +300,12 @@ int main() {
                 << max_con_0 << ", " << ef_con << endl;
             *results_file << "ef_search, dist_comps/query, recall, search time (MS)/query" << endl;
         }
+
+        if (neighbors[i].empty())
+            continue;
+
+        cout << "Results for construction parameters: " << opt_con << ", " << max_con << ", "
+            << max_con_0 << ", " << ef_con << " and search parameters: " << ef_s << endl;
 
         int similar = 0;
         for (int j = 0; j < config->num_queries; ++j) {
