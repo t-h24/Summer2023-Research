@@ -558,9 +558,13 @@ void print_hnsw(Config* config, HNSW* hnsw) {
 
 void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     vector<vector<int>> paths(config->num_queries);
-    ofstream* file = NULL;
+    ofstream* export_file = NULL;
     if (config->export_queries)
-        file = new ofstream(config->export_dir + "queries.txt");
+        export_file = new ofstream(config->export_dir + "queries.txt");
+    
+    ofstream* recall_file = NULL;
+    if (config->export_recalls)
+        recall_file = new ofstream(config->export_dir + "recall.txt");
 
     bool use_groundtruth = config->groundtruth_file != "";
     if (use_groundtruth && config->query_file == "") {
@@ -595,7 +599,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             cout << endl;
         }
 
-        if (config->print_actual || config->print_indiv_found || config->print_total_found) {
+        if (config->print_actual || config->print_indiv_found || config->print_total_found || config->export_recalls) {
             if (!use_groundtruth) {
                 // Get actual nearest neighbors
                 priority_queue<pair<float, int>> pq;
@@ -628,7 +632,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
                 cout << endl;
             }
 
-            if (config->print_indiv_found || config->print_total_found) {
+            if (config->print_indiv_found || config->print_total_found || config->export_recalls) {
                 unordered_set<int> actual_set(actual_neighbors[i].begin(), actual_neighbors[i].end());
                 int matching = 0;
                 for (auto n_pair : found) {
@@ -640,20 +644,22 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
                     cout << "Found " << matching << " (" << matching /  (double)config->num_return * 100 << "%) for query " << i << endl;
                 if (config->print_total_found)
                     total_found += matching;
+                if (config->export_recalls)
+                    *recall_file << matching / (double)config->num_return << endl;
             }
         }
 
         if (config->export_queries) {
-            *file << "Query " << i << endl << query.second[0];
+            *export_file << "Query " << i << endl << query.second[0];
             for (int dim = 1; dim < config->dimensions; ++dim)
-                *file << "," << query.second[dim];
-            *file << endl;
+                *export_file << "," << query.second[dim];
+            *export_file << endl;
             for (auto n_pair : found)
-                *file << n_pair.second << ",";
-            *file << endl;
+                *export_file << n_pair.second << ",";
+            *export_file << endl;
             for (int node : paths[i])
-                *file << node << ",";
-            *file << endl;
+                *export_file << node << ",";
+            *export_file << endl;
         }
     }
 
@@ -662,10 +668,15 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     }
 
     cout << "Finished search" << endl;
-    if (file != NULL) {
-        file->close();
-        delete file;
+    if (export_file != NULL) {
+        export_file->close();
+        delete export_file;
         cout << "Exported queries to " << config->export_dir << "queries.txt" << endl;
+    }
+    if (recall_file != NULL) {
+        recall_file->close();
+        delete recall_file;
+        cout << "Exported recalls per query to " << config->export_dir << "recall.txt" << endl;
     }
 }
 

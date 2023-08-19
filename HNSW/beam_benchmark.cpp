@@ -70,6 +70,7 @@ int main() {
     config->print_graph = false;
     config->export_graph = false;
     config->export_queries = false;
+    config->export_recalls = false;
     config->debug_query_search_index = -1;
     config->num_queries = 100;
     config->num_return = 20;

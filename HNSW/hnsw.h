@@ -48,6 +48,7 @@ public:
 
     bool export_graph = false;
     bool export_queries = false;
+    bool export_recalls = false;
 
     int debug_query_search_index = -1;
 };
