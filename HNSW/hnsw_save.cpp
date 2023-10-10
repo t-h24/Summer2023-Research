@@ -20,7 +20,7 @@ int main() {
     // Setup config
     config->export_graph = false;
     config->export_queries = false;
-    config->export_recalls = false;
+    config->export_indiv = false;
     config->debug_query_search_index = -1;
 
     // Get num_nodes amount of graph nodes

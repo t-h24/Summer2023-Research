@@ -563,8 +563,8 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         export_file = new ofstream(config->export_dir + "queries.txt");
     
     ofstream* recall_file = NULL;
-    if (config->export_recalls)
-        recall_file = new ofstream(config->export_dir + "recall.txt");
+    if (config->export_indiv)
+        recall_file = new ofstream(config->export_dir + "indiv.txt");
 
     bool use_groundtruth = config->groundtruth_file != "";
     if (use_groundtruth && config->query_file == "") {
@@ -599,7 +599,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             cout << endl;
         }
 
-        if (config->print_actual || config->print_indiv_found || config->print_total_found || config->export_recalls) {
+        if (config->print_actual || config->print_indiv_found || config->print_total_found || config->export_indiv) {
             if (!use_groundtruth) {
                 // Get actual nearest neighbors
                 priority_queue<pair<float, int>> pq;
@@ -632,7 +632,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
                 cout << endl;
             }
 
-            if (config->print_indiv_found || config->print_total_found || config->export_recalls) {
+            if (config->print_indiv_found || config->print_total_found || config->export_indiv) {
                 unordered_set<int> actual_set(actual_neighbors[i].begin(), actual_neighbors[i].end());
                 int matching = 0;
                 for (auto n_pair : found) {
@@ -644,8 +644,8 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
                     cout << "Found " << matching << " (" << matching /  (double)config->num_return * 100 << "%) for query " << i << endl;
                 if (config->print_total_found)
                     total_found += matching;
-                if (config->export_recalls)
-                    *recall_file << matching / (double)config->num_return << endl;
+                if (config->export_indiv)
+                    *recall_file << matching / (double)config->num_return << " " << dist_comps << endl;
             }
         }
 
