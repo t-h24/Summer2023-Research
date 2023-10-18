@@ -562,9 +562,9 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     if (config->export_queries)
         export_file = new ofstream(config->export_dir + "queries.txt");
     
-    ofstream* recall_file = NULL;
+    ofstream* indiv_file = NULL;
     if (config->export_indiv)
-        recall_file = new ofstream(config->export_dir + "indiv.txt");
+        indiv_file = new ofstream(config->export_dir + "indiv.txt");
 
     bool use_groundtruth = config->groundtruth_file != "";
     if (use_groundtruth && config->query_file == "") {
@@ -645,7 +645,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
                 if (config->print_total_found)
                     total_found += matching;
                 if (config->export_indiv)
-                    *recall_file << matching / (double)config->num_return << " " << dist_comps << endl;
+                    *indiv_file << matching / (double)config->num_return << " " << dist_comps << endl;
             }
         }
 
@@ -673,10 +673,10 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         delete export_file;
         cout << "Exported queries to " << config->export_dir << "queries.txt" << endl;
     }
-    if (recall_file != NULL) {
-        recall_file->close();
-        delete recall_file;
-        cout << "Exported recalls per query to " << config->export_dir << "recall.txt" << endl;
+    if (indiv_file != NULL) {
+        indiv_file->close();
+        delete indiv_file;
+        cout << "Exported individual query results to " << config->export_dir << "indiv.txt" << endl;
     }
 }
 
