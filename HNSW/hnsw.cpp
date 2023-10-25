@@ -11,6 +11,11 @@ using namespace std;
 long long int dist_comps = 0;
 ofstream* debug_file = NULL;
 
+int correct_nn_found = 0;
+bool log_neighbors = false;
+vector<int> cur_groundtruth;
+ofstream* when_neigh_found_file;
+
 HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
 float calculate_l2_sq(float* a, float* b, int size) {
@@ -348,11 +353,29 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
     priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
     priority_queue<pair<float, int>> found;
 
+    // Array of when each neighbor was found
+    vector<int> when_neigh_found(config->num_return, -1);
+    int nn_found = 0;
+
     // Add entry points to visited, candidates, and found
     for (auto entry : entry_points) {
         visited.insert(entry.second);
         candidates.emplace(entry);
         found.emplace(entry);
+
+        if (log_neighbors) {
+            auto loc = find(cur_groundtruth.begin(), cur_groundtruth.end(), entry.second);
+            if (loc != cur_groundtruth.end()) {
+                // Get neighbor index (xth closest) and log distance comp
+                int index = distance(cur_groundtruth.begin(), loc);
+                when_neigh_found[index] = dist_comps;
+                ++nn_found;
+                ++correct_nn_found;
+                if (config->gt_smart_termination && nn_found == config->num_return)
+                    // End search
+                    priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
+            }
+        }
     }
 
     int iteration = 0;
@@ -412,6 +435,20 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                     candidates.emplace(neighbor_dist, neighbor);
                     found.emplace(neighbor_dist, neighbor);
 
+                    if (log_neighbors) {
+                        auto loc = find(cur_groundtruth.begin(), cur_groundtruth.end(), neighbor);
+                        if (loc != cur_groundtruth.end()) {
+                            // Get neighbor index (xth closest) and log distance comp
+                            int index = distance(cur_groundtruth.begin(), loc);
+                            when_neigh_found[index] = dist_comps;
+                            ++nn_found;
+                            ++correct_nn_found;
+                            if (config->gt_smart_termination && nn_found == config->num_return)
+                                // End search
+                                priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
+                        }
+                    }
+
                     // If found is greater than num_to_return, remove furthest
                     if (found.size() > num_to_return)
                         found.pop();
@@ -430,6 +467,12 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
         entry_points[idx] = found.top();
         found.pop();
     }
+
+    // Export when_neigh_found data
+    if (log_neighbors)
+        for (int i = 0; i < config->num_return; ++i) {
+            *when_neigh_found_file << when_neigh_found[i] << " ";
+        }
 }
 
 /**
@@ -459,7 +502,11 @@ vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>
     if (config->debug_query_search_index == query.first) {
         debug_file = new ofstream(config->export_dir + "query_search.txt");
     }
+    if (config->gt_dist_log)
+        log_neighbors = true;
     search_layer(config, hnsw, query.second, entry_points, ef_con, 0);
+    if (config->gt_dist_log)
+        log_neighbors = false;
     if (config->debug_query_search_index == query.first) {
         debug_file->close();
         delete debug_file;
@@ -566,6 +613,9 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     if (config->export_indiv)
         indiv_file = new ofstream(config->export_dir + "indiv.txt");
 
+    if (config->gt_dist_log)
+        when_neigh_found_file = new ofstream(config->export_dir + "when_neigh_found.txt");
+
     bool use_groundtruth = config->groundtruth_file != "";
     if (use_groundtruth && config->query_file == "") {
         cout << "Warning: Groundtruth file will not be used because queries were generated" << endl;
@@ -573,15 +623,51 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     }
 
     vector<vector<int>> actual_neighbors;
-    if (use_groundtruth)
+    if (use_groundtruth) {
         load_ivecs(config->groundtruth_file, actual_neighbors, config->num_queries, config->num_return);
-    else
+
+        if (config->gt_dist_log)
+            // Sort groundtruth neighbors by distance
+            for (int i = 0; i < config->num_queries; ++i) {
+                vector<int>& neighbors = actual_neighbors[i];
+                sort(neighbors.begin(), neighbors.end(), [&](int a, int b) {
+                    float dist_a = calculate_l2_sq(queries[i], hnsw->nodes[a], config->dimensions);
+                    float dist_b = calculate_l2_sq(queries[i], hnsw->nodes[b], config->dimensions);
+                    return dist_a < dist_b;
+                });
+            }
+    } else
         actual_neighbors.resize(config->num_queries);
 
     int total_found = 0;
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
+        if ((config->print_actual || config->print_indiv_found || config->print_total_found || config->export_indiv
+            || config->gt_dist_log) && !use_groundtruth) {
+            // Get actual nearest neighbors
+            priority_queue<pair<float, int>> pq;
+            for (int j = 0; j < config->num_nodes; ++j) {
+                float dist = calculate_l2_sq(query.second, hnsw->nodes[j], config->dimensions);
+                pq.emplace(dist, j);
+                if (pq.size() > config->num_return)
+                    pq.pop();
+            }
+
+            // Place actual nearest neighbors
+            actual_neighbors[i].resize(config->num_return);
+
+            int idx = config->num_return;
+            while (idx > 0) {
+                --idx;
+                actual_neighbors[i][idx] = pq.top().second;
+                pq.pop();
+            }
+        }
+        cur_groundtruth = actual_neighbors[i];
+        dist_comps = 0;
         vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
+        if (config->gt_dist_log)
+            *when_neigh_found_file << endl;
         
         if (config->print_results) {
             // Print out found
@@ -599,54 +685,31 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             cout << endl;
         }
 
-        if (config->print_actual || config->print_indiv_found || config->print_total_found || config->export_indiv) {
-            if (!use_groundtruth) {
-                // Get actual nearest neighbors
-                priority_queue<pair<float, int>> pq;
-                for (int j = 0; j < config->num_nodes; ++j) {
-                    float dist = calculate_l2_sq(query.second, hnsw->nodes[j], config->dimensions);
-                    pq.emplace(dist, j);
-                    if (pq.size() > config->num_return)
-                        pq.pop();
-                }
+        if (config->print_actual) {
+            // Print out actual
+            cout << "Actual " << config->num_return << " nearest neighbors of [" << query.second[0];
+            for (int dim = 1; dim < config->dimensions; ++dim)
+                cout << " " << query.second[dim];
+            cout << "] : ";
+            for (int index : actual_neighbors[i])
+                cout << index << " ";
+            cout << endl;
+        }
 
-                // Place actual nearest neighbors
-                actual_neighbors[i].resize(config->num_return);
-
-                int idx = config->num_return;
-                while (idx > 0) {
-                    --idx;
-                    actual_neighbors[i][idx] = pq.top().second;
-                    pq.pop();
-                }
+        if (config->print_indiv_found || config->print_total_found || config->export_indiv) {
+            unordered_set<int> actual_set(actual_neighbors[i].begin(), actual_neighbors[i].end());
+            int matching = 0;
+            for (auto n_pair : found) {
+                if (actual_set.find(n_pair.second) != actual_set.end())
+                    ++matching;
             }
 
-            if (config->print_actual) {
-                // Print out actual
-                cout << "Actual " << config->num_return << " nearest neighbors of [" << query.second[0];
-                for (int dim = 1; dim < config->dimensions; ++dim)
-                    cout << " " << query.second[dim];
-                cout << "] : ";
-                for (int index : actual_neighbors[i])
-                    cout << index << " ";
-                cout << endl;
-            }
-
-            if (config->print_indiv_found || config->print_total_found || config->export_indiv) {
-                unordered_set<int> actual_set(actual_neighbors[i].begin(), actual_neighbors[i].end());
-                int matching = 0;
-                for (auto n_pair : found) {
-                    if (actual_set.find(n_pair.second) != actual_set.end())
-                        ++matching;
-                }
-
-                if (config->print_indiv_found)
-                    cout << "Found " << matching << " (" << matching /  (double)config->num_return * 100 << "%) for query " << i << endl;
-                if (config->print_total_found)
-                    total_found += matching;
-                if (config->export_indiv)
-                    *indiv_file << matching / (double)config->num_return << " " << dist_comps << endl;
-            }
+            if (config->print_indiv_found)
+                cout << "Found " << matching << " (" << matching /  (double)config->num_return * 100 << "%) for query " << i << endl;
+            if (config->print_total_found)
+                total_found += matching;
+            if (config->export_indiv)
+                *indiv_file << matching / (double)config->num_return << " " << dist_comps << endl;
         }
 
         if (config->export_queries) {
@@ -663,6 +726,9 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         }
     }
 
+    if (config->gt_dist_log) {
+        cout << "Total neighbors found (gt comparison): " << correct_nn_found << " (" << correct_nn_found / (double)(config->num_queries * config->num_return) * 100 << "%)" << endl;
+    }
     if (config->print_total_found) {
         cout << "Total neighbors found: " << total_found << " (" << total_found / (double)(config->num_queries * config->num_return) * 100 << "%)" << endl;
     }
@@ -677,6 +743,12 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         indiv_file->close();
         delete indiv_file;
         cout << "Exported individual query results to " << config->export_dir << "indiv.txt" << endl;
+    }
+
+    if (config->gt_dist_log) {
+        when_neigh_found_file->close();
+        delete when_neigh_found_file;
+        cout << "Exported when neighbors were found to " << config->export_dir << "when_neigh_found.txt" << endl;
     }
 }
 

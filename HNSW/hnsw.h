@@ -37,10 +37,16 @@ public:
     int num_queries = 100;
     int num_return = 20;
 
+    // Note: Distance ties will make the found percentage lower
     bool print_results = false;
     bool print_actual = false;
     bool print_indiv_found = false;
     bool print_total_found = true;
+
+    // Log where the neighbors are found per query
+    bool gt_dist_log = false;
+    // Use groundtruth to terminate search early
+    bool gt_smart_termination = true;
 
     bool debug_insert = false;
     bool debug_search = false;
