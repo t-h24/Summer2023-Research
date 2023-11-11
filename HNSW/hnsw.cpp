@@ -335,6 +335,10 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
                 neighbor_mapping.pop_back();
             }
         }
+
+        if (config->single_entry_point)
+            // Resize entry_points to 1
+            entry_points.resize(1);
     }
 
     if (node_level > top) {

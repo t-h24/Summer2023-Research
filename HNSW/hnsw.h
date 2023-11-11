@@ -24,6 +24,9 @@ public:
     int gen_min = 0;
     int gen_max = 100000;
     int gen_decimals = 2;
+    
+    // Enforces a single entry point for graph construction. Searching will always be single entry point
+    bool single_entry_point = true;
 
     int dimensions = 128;
     int num_nodes = 10000;
