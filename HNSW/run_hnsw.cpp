@@ -8,6 +8,8 @@ const string LOAD_DIR = "exports/";
 const string LOAD_NAME = "random_graph";
 const int LOAD_INDEX = 0;
 
+const bool RUN_SEARCH = true;
+
 void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_nodes, int num_layers) {
     // Load node neighbors
     for (int i = 0; i < num_nodes; ++i) {
@@ -103,14 +105,21 @@ int main() {
 
     // Print HNSW graph
     print_hnsw(config, hnsw);
-    
-    // Generate num_queries amount of queries
-    float** queries = new float*[config->num_queries];
-    load_queries(config, nodes, queries);
-    cout << "Beginning search" << endl;
 
-    // Run query search and print results
-    run_query_search(config, hnsw, queries);
+    if (RUN_SEARCH) {
+        // Generate num_queries amount of queries
+        float** queries = new float*[config->num_queries];
+        load_queries(config, nodes, queries);
+        cout << "Beginning search" << endl;
+
+        // Run query search and print results
+        run_query_search(config, hnsw, queries);
+
+        // Delete queries
+        for (int i = 0; i < config->num_queries; ++i)
+            delete queries[i];
+        delete[] queries;
+    }
 
     // Export graph to file
     export_graph(config, hnsw, nodes);
@@ -119,11 +128,6 @@ int main() {
     for (int i = 0; i < config->num_nodes; i++)
         delete nodes[i];
     delete[] nodes;
-
-    // Delete queries
-    for (int i = 0; i < config->num_queries; ++i)
-        delete queries[i];
-    delete[] queries;
 
     // Delete hnsw and config
     delete hnsw;
