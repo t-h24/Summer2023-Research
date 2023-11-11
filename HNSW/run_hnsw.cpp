@@ -63,6 +63,7 @@ int main() {
         const string info_file_name = LOAD_DIR + LOAD_NAME + "_info_" + to_string(LOAD_INDEX) + ".txt";
         ifstream graph_file(graph_file_name);
         ifstream info_file(info_file_name);
+        cout << "Loading saved graph from " << graph_file_name << endl;
 
         if (!graph_file) {
             cout << "File " << graph_file_name << " not found!" << endl;
