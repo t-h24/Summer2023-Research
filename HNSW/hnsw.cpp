@@ -16,9 +16,6 @@ bool log_neighbors = false;
 vector<int> cur_groundtruth;
 ofstream* when_neigh_found_file;
 
-// 0 = building, 1 = searching
-int program_state = 0;
-
 HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
 float calculate_l2_sq(float* a, float* b, int size) {
@@ -370,7 +367,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
         candidates.emplace(entry);
         found.emplace(entry);
 
-        if (program_state == 1 && log_neighbors) {
+        if (log_neighbors) {
             auto loc = find(cur_groundtruth.begin(), cur_groundtruth.end(), entry.second);
             if (loc != cur_groundtruth.end()) {
                 // Get neighbor index (xth closest) and log distance comp
@@ -442,7 +439,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                     candidates.emplace(neighbor_dist, neighbor);
                     found.emplace(neighbor_dist, neighbor);
 
-                    if (program_state == 1 && log_neighbors) {
+                    if (log_neighbors) {
                         auto loc = find(cur_groundtruth.begin(), cur_groundtruth.end(), neighbor);
                         if (loc != cur_groundtruth.end()) {
                             // Get neighbor index (xth closest) and log distance comp
@@ -476,7 +473,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
     }
 
     // Export when_neigh_found data
-    if (program_state == 1 && log_neighbors)
+    if (log_neighbors)
         for (int i = 0; i < config->num_return; ++i) {
             *when_neigh_found_file << when_neigh_found[i] << " ";
         }
@@ -647,7 +644,6 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
         actual_neighbors.resize(config->num_queries);
 
     int total_found = 0;
-    program_state = 1;
     for (int i = 0; i < config->num_queries; ++i) {
         pair<int, float*> query = make_pair(i, queries[i]);
         if ((config->print_actual || config->print_indiv_found || config->print_total_found || config->export_indiv
