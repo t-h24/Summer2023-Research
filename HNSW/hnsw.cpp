@@ -627,20 +627,9 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
     }
 
     vector<vector<int>> actual_neighbors;
-    if (use_groundtruth) {
+    if (use_groundtruth)
         load_ivecs(config->groundtruth_file, actual_neighbors, config->num_queries, config->num_return);
-
-        if (config->gt_dist_log)
-            // Sort groundtruth neighbors by distance
-            for (int i = 0; i < config->num_queries; ++i) {
-                vector<int>& neighbors = actual_neighbors[i];
-                sort(neighbors.begin(), neighbors.end(), [&](int a, int b) {
-                    float dist_a = calculate_l2_sq(queries[i], hnsw->nodes[a], config->dimensions);
-                    float dist_b = calculate_l2_sq(queries[i], hnsw->nodes[b], config->dimensions);
-                    return dist_a < dist_b;
-                });
-            }
-    } else
+    else
         actual_neighbors.resize(config->num_queries);
 
     int total_found = 0;
