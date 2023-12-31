@@ -351,10 +351,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
 */
 void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, int>>& entry_points, int num_to_return, int layer_num) {
     set<int> visited;
-    auto ge_comp = [](const pair<float, int>& a, const pair<float, int>& b) {
-        return a.first > b.first;
-    };
-    priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
+    priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>> candidates;
     priority_queue<pair<float, int>> found;
 
     // Array of when each neighbor was found
@@ -377,7 +374,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                 ++correct_nn_found;
                 if (config->gt_smart_termination && nn_found == config->num_return)
                     // End search
-                    priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
+                    candidates = priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>>();
             }
         }
     }
@@ -391,7 +388,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                 *debug_file << index << ",";
             *debug_file << endl;
 
-            priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> temp_candidates(candidates);
+            priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>> temp_candidates(candidates);
             while (!temp_candidates.empty()) {
                 *debug_file << temp_candidates.top().second << ",";
                 temp_candidates.pop();
@@ -449,7 +446,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                             ++correct_nn_found;
                             if (config->gt_smart_termination && nn_found == config->num_return)
                                 // End search
-                                priority_queue<pair<float, int>, vector<pair<float, int>>, decltype(ge_comp)> candidates(ge_comp);
+                                candidates = priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>>();
                         }
                     }
 
