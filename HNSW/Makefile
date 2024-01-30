@@ -12,10 +12,10 @@ all: $(TARGETS)
 beam_benchmark.out: beam_benchmark.cpp hnsw.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-run_hnsw.out: hnsw.cpp run_hnsw.cpp
+run_hnsw.out: run_hnsw.cpp hnsw.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-hnsw_save.out: hnsw.cpp hnsw_save.cpp
+hnsw_save.out: hnsw_save.cpp hnsw.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 clean:
