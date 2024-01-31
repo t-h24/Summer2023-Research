@@ -7,7 +7,9 @@
 #include <random>
 #include <functional>
 
-extern long long int dist_comps;
+extern long long int level0_dist_comps;
+extern long long int upper_dist_comps;
+
 extern std::ofstream* debug_file;
 
 class Config {
@@ -75,7 +77,7 @@ public:
 };
 
 // Helper functions
-float calculate_l2_sq(float* a, float* b, int size);
+float calculate_l2_sq(float* a, float* b, int size, int level);
 void load_fvecs(const std::string& file, const std::string& type, float** nodes, int num, int dim, bool has_groundtruth);
 void load_ivecs(const std::string& file, std::vector<std::vector<int>>& results, int num, int dim);
 

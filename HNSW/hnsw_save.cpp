@@ -42,7 +42,8 @@ int main() {
         config->max_connections = max_connections[i];
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
-        dist_comps = 0;
+        level0_dist_comps = 0;
+        upper_dist_comps = 0;
 
         // Sanity checks
         if(!sanity_checks(config)) {
@@ -62,7 +63,8 @@ int main() {
         auto end = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
         cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-        cout << "Distance computations: " << dist_comps << endl;
+        cout << "Distance computations (level 0): " << level0_dist_comps << endl;
+        cout << "Distance computations (top levels): " << upper_dist_comps << endl;
 
         // Export graph to file
         ofstream graph_file(EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin");
@@ -102,7 +104,8 @@ int main() {
             << config->max_connections_0 << " " << config->ef_construction << endl;
         info_file << config->num_nodes << endl;
         info_file << hnsw->layers << endl;
-        info_file << dist_comps << endl;
+        info_file << level0_dist_comps << endl;
+        info_file << upper_dist_comps << endl;
         info_file << duration / 1000.0 << endl;
 
         cout << "Exported graph to " << EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin" << endl;

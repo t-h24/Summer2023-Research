@@ -8,7 +8,9 @@
 
 using namespace std;
 
-long long int dist_comps = 0;
+long long int level0_dist_comps = 0;
+long long int upper_dist_comps = 0;
+
 ofstream* debug_file = NULL;
 
 int correct_nn_found = 0;
@@ -18,8 +20,11 @@ ofstream* when_neigh_found_file;
 
 HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
-float calculate_l2_sq(float* a, float* b, int size) {
-    ++dist_comps;
+float calculate_l2_sq(float* a, float* b, int size, int level) {
+    if (level == 0)
+        ++level0_dist_comps;
+    else
+        ++upper_dist_comps;
 
     int parts = size / 8;
 
@@ -265,10 +270,8 @@ void load_queries(Config* config, float** nodes, float** queries) {
 HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, int ef_con, float normal_factor, function<double()> rand) {
     vector<pair<float, int>> entry_points;
     entry_points.reserve(ef_con);
-    float dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[hnsw->entry_point], config->dimensions);
-    entry_points.push_back(make_pair(dist, hnsw->entry_point));
     int top = hnsw->layers - 1;
-    
+
     // Get node level
     int node_level = -log(rand()) * normal_factor;
     hnsw->mappings[query].resize(node_level + 1);
@@ -279,6 +282,9 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
         if (config->debug_insert)
             cout << "Layer count increased to " << hnsw->layers << endl;
     }
+
+    float dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[hnsw->entry_point], config->dimensions, top);
+    entry_points.push_back(make_pair(dist, hnsw->entry_point));
 
     if (config->debug_insert)
         cout << "Inserting node " << query << " at level " << node_level << " with entry point " << entry_points[0].second << endl;
@@ -318,7 +324,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
             vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][level];
 
             // Place query in correct position in neighbor_mapping
-            float new_dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[n_pair.second], config->dimensions);
+            float new_dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[n_pair.second], config->dimensions, level);
             auto new_pair = make_pair(new_dist, query);
             auto pos = lower_bound(neighbor_mapping.begin(), neighbor_mapping.end(), new_pair);
             neighbor_mapping.insert(pos, new_pair);
@@ -369,7 +375,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
             if (loc != cur_groundtruth.end()) {
                 // Get neighbor index (xth closest) and log distance comp
                 int index = distance(cur_groundtruth.begin(), loc);
-                when_neigh_found[index] = dist_comps;
+                when_neigh_found[index] = level0_dist_comps;
                 ++nn_found;
                 ++correct_nn_found;
                 if (config->gt_smart_termination && nn_found == config->num_return)
@@ -431,7 +437,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                 // If distance from query to neighbor is less than the distance from query to furthest,
                 // or if the size of found is less than num_to_return,
                 // add to candidates and found
-                float neighbor_dist = calculate_l2_sq(query, hnsw->nodes[neighbor], config->dimensions);
+                float neighbor_dist = calculate_l2_sq(query, hnsw->nodes[neighbor], config->dimensions, layer_num);
                 if (neighbor_dist < far_inner_dist || found.size() < num_to_return) {
                     candidates.emplace(neighbor_dist, neighbor);
                     found.emplace(neighbor_dist, neighbor);
@@ -441,7 +447,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                         if (loc != cur_groundtruth.end()) {
                             // Get neighbor index (xth closest) and log distance comp
                             int index = distance(cur_groundtruth.begin(), loc);
-                            when_neigh_found[index] = dist_comps;
+                            when_neigh_found[index] = level0_dist_comps;
                             ++nn_found;
                             ++correct_nn_found;
                             if (config->gt_smart_termination && nn_found == config->num_return)
@@ -484,9 +490,9 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
 vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>& query, int num_to_return, int ef_con, vector<int>& path) {
     vector<pair<float, int>> entry_points;
     entry_points.reserve(ef_con);
-    float dist = calculate_l2_sq(query.second, hnsw->nodes[hnsw->entry_point], config->dimensions);
-    entry_points.push_back(make_pair(dist, hnsw->entry_point));
     int top = hnsw->layers - 1;
+    float dist = calculate_l2_sq(query.second, hnsw->nodes[hnsw->entry_point], config->dimensions, top);
+    entry_points.push_back(make_pair(dist, hnsw->entry_point));
 
     if (config->debug_search)
         cout << "Searching for " << num_to_return << " nearest neighbors of node " << query.first << endl;
@@ -637,7 +643,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             // Get actual nearest neighbors
             priority_queue<pair<float, int>> pq;
             for (int j = 0; j < config->num_nodes; ++j) {
-                float dist = calculate_l2_sq(query.second, hnsw->nodes[j], config->dimensions);
+                float dist = calculate_l2_sq(query.second, hnsw->nodes[j], config->dimensions, -1);
                 pq.emplace(dist, j);
                 if (pq.size() > config->num_return)
                     pq.pop();
@@ -654,7 +660,8 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             }
         }
         cur_groundtruth = actual_neighbors[i];
-        dist_comps = 0;
+        level0_dist_comps = 0;
+        upper_dist_comps = 0;
         vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
         if (config->gt_dist_log)
             *when_neigh_found_file << endl;
@@ -699,7 +706,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             if (config->print_total_found)
                 total_found += matching;
             if (config->export_indiv)
-                *indiv_file << matching / (double)config->num_return << " " << dist_comps << endl;
+                *indiv_file << matching / (double)config->num_return << " " << level0_dist_comps << " " << upper_dist_comps << endl;
         }
 
         if (config->export_queries) {

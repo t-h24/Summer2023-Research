@@ -110,7 +110,8 @@ int main() {
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
         config->ef_search = config->num_return;
-        dist_comps = 0;
+        level0_dist_comps = 0;
+        upper_dist_comps = 0;
 
         // Sanity checks
         if(!sanity_checks(config)) {
@@ -138,12 +139,14 @@ int main() {
             int opt_con, max_con, max_con_0, ef_con;
             int num_nodes;
             int num_layers;
-            long long construct_dist_comps;
+            long long construct_level0_dist_comps;
+            long long construct_upper_dist_comps;
             double construct_duration;
             info_file >> opt_con >> max_con >> max_con_0 >> ef_con;
             info_file >> num_nodes;
             info_file >> num_layers;
-            info_file >> construct_dist_comps;
+            info_file >> construct_level0_dist_comps;
+            info_file >> construct_upper_dist_comps;
             info_file >> construct_duration;
 
             // Check if number of nodes match
@@ -174,7 +177,8 @@ int main() {
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Load time: " << duration / 1000.0 << " seconds" << endl;
             cout << "Construction time: " << construct_duration << " seconds" << endl;
-            cout << "Distance computations: " << construct_dist_comps << endl;
+            cout << "Distance computations (level 0): " << construct_level0_dist_comps << endl;
+            cout << "Distance computations (top levels): " << construct_upper_dist_comps << endl;
         } else {
             // Insert nodes into HNSW
             auto start = chrono::high_resolution_clock::now();
@@ -188,7 +192,8 @@ int main() {
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-            cout << "Distance computations: " << dist_comps << endl;
+            cout << "Distance computations (level 0): " << level0_dist_comps << endl;
+            cout << "Distance computations (top levels): " << upper_dist_comps << endl;
         }
 
         for (int j = 0; j < SEARCH_SIZE; ++j) {
@@ -201,7 +206,8 @@ int main() {
 
             config->ef_search = ef_searches[j];
             auto start = chrono::high_resolution_clock::now();
-            dist_comps = 0;
+            level0_dist_comps = 0;
+            upper_dist_comps = 0;
 
             // Run query search
             cout << "Searching with ef_search = " << ef_searches[j] << endl;
@@ -210,10 +216,11 @@ int main() {
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-            cout << "Distance computations: " << dist_comps << endl;
+            cout << "Distance computations (level 0): " << level0_dist_comps << endl;
+            cout << "Distance computations (top levels): " << upper_dist_comps << endl;
 
             search_durations.push_back(duration);
-            search_dist_comps.push_back(dist_comps);
+            search_dist_comps.push_back(level0_dist_comps);
         }
 
         delete hnsw;
@@ -233,7 +240,7 @@ int main() {
             for (int i = 0; i < config->num_queries; ++i) {
                 cout << "Neighbors in ideal case for query " << i << endl;
                 for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
-                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions);
+                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions, -1);
                     cout << actual_neighbors[i][j] << " (" << dist << ") ";
                 }
                 cout << endl;
@@ -247,7 +254,7 @@ int main() {
             priority_queue<pair<float, int>> pq;
 
             for (int j = 0; j < config->num_nodes; ++j) {
-                float dist = calculate_l2_sq(queries[i], nodes[j], config->dimensions);
+                float dist = calculate_l2_sq(queries[i], nodes[j], config->dimensions, -1);
                 pq.emplace(dist, j);
                 if (pq.size() > config->num_return)
                     pq.pop();
@@ -267,7 +274,7 @@ int main() {
             if (PRINT_NEIGHBORS) {
                 cout << "Neighbors in ideal case for query " << i << endl;
                 for (size_t j = 0; j < actual_neighbors[i].size(); ++j) {
-                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions);
+                    float dist = calculate_l2_sq(queries[i], nodes[actual_neighbors[i][j]], config->dimensions, -1);
                     cout << actual_neighbors[i][j] << " (" << dist << ") ";
                 }
                 cout << endl;
@@ -341,7 +348,7 @@ int main() {
                 }
                 for (size_t k = 0; k < actual_neighbors[j].size(); ++k) {
                     if (intersection.find(actual_neighbors[j][k]) == intersection.end()) {
-                        float dist = calculate_l2_sq(queries[j], nodes[actual_neighbors[j][k]], config->dimensions);
+                        float dist = calculate_l2_sq(queries[j], nodes[actual_neighbors[j][k]], config->dimensions, -1);
                         cout << actual_neighbors[j][k] << " (" << dist << ") ";
                     }
                 }
