@@ -20,12 +20,12 @@ const string EXPORT_NAME = "random_graph";
 void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_nodes, int num_layers) {
     // Load node neighbors
     for (int i = 0; i < num_nodes; ++i) {
-        int levels;
-        graph_file.read(reinterpret_cast<char*>(&levels), sizeof(levels));
-        hnsw->mappings[i].resize(levels);
+        int layers;
+        graph_file.read(reinterpret_cast<char*>(&layers), sizeof(layers));
+        hnsw->mappings[i].resize(layers);
 
-        // Load level
-        for (int j = 0; j < levels; ++j) {
+        // Load layers
+        for (int j = 0; j < layers; ++j) {
             int num_neighbors;
             graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
             hnsw->mappings[i][j].reserve(num_neighbors);
@@ -110,7 +110,7 @@ int main() {
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
         config->ef_search = config->num_return;
-        level0_dist_comps = 0;
+        layer0_dist_comps = 0;
         upper_dist_comps = 0;
 
         // Sanity checks
@@ -139,13 +139,13 @@ int main() {
             int opt_con, max_con, max_con_0, ef_con;
             int num_nodes;
             int num_layers;
-            long long construct_level0_dist_comps;
+            long long construct_layer0_dist_comps;
             long long construct_upper_dist_comps;
             double construct_duration;
             info_file >> opt_con >> max_con >> max_con_0 >> ef_con;
             info_file >> num_nodes;
             info_file >> num_layers;
-            info_file >> construct_level0_dist_comps;
+            info_file >> construct_layer0_dist_comps;
             info_file >> construct_upper_dist_comps;
             info_file >> construct_duration;
 
@@ -177,8 +177,8 @@ int main() {
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Load time: " << duration / 1000.0 << " seconds" << endl;
             cout << "Construction time: " << construct_duration << " seconds" << endl;
-            cout << "Distance computations (level 0): " << construct_level0_dist_comps << endl;
-            cout << "Distance computations (top levels): " << construct_upper_dist_comps << endl;
+            cout << "Distance computations (layer 0): " << construct_layer0_dist_comps << endl;
+            cout << "Distance computations (top layers): " << construct_upper_dist_comps << endl;
         } else {
             // Insert nodes into HNSW
             auto start = chrono::high_resolution_clock::now();
@@ -192,8 +192,8 @@ int main() {
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-            cout << "Distance computations (level 0): " << level0_dist_comps << endl;
-            cout << "Distance computations (top levels): " << upper_dist_comps << endl;
+            cout << "Distance computations (layer 0): " << layer0_dist_comps << endl;
+            cout << "Distance computations (top layers): " << upper_dist_comps << endl;
         }
 
         for (int j = 0; j < SEARCH_SIZE; ++j) {
@@ -206,7 +206,7 @@ int main() {
 
             config->ef_search = ef_searches[j];
             auto start = chrono::high_resolution_clock::now();
-            level0_dist_comps = 0;
+            layer0_dist_comps = 0;
             upper_dist_comps = 0;
 
             // Run query search
@@ -216,11 +216,11 @@ int main() {
             auto end = chrono::high_resolution_clock::now();
             auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
             cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-            cout << "Distance computations (level 0): " << level0_dist_comps << endl;
-            cout << "Distance computations (top levels): " << upper_dist_comps << endl;
+            cout << "Distance computations (layer 0): " << layer0_dist_comps << endl;
+            cout << "Distance computations (top layers): " << upper_dist_comps << endl;
 
             search_durations.push_back(duration);
-            search_dist_comps.push_back(level0_dist_comps);
+            search_dist_comps.push_back(layer0_dist_comps);
         }
 
         delete hnsw;

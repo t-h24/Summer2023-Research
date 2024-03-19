@@ -8,7 +8,7 @@
 
 using namespace std;
 
-long long int level0_dist_comps = 0;
+long long int layer0_dist_comps = 0;
 long long int upper_dist_comps = 0;
 
 ofstream* debug_file = NULL;
@@ -20,9 +20,9 @@ ofstream* when_neigh_found_file;
 
 HNSW::HNSW(int node_size, float** nodes) : node_size(node_size), nodes(nodes), layers(0) {}
 
-float calculate_l2_sq(float* a, float* b, int size, int level) {
-    if (level == 0)
-        ++level0_dist_comps;
+float calculate_l2_sq(float* a, float* b, int size, int layer) {
+    if (layer == 0)
+        ++layer0_dist_comps;
     else
         ++upper_dist_comps;
 
@@ -265,20 +265,20 @@ void load_queries(Config* config, float** nodes, float** queries) {
  * Alg 1
  * INSERT(hnsw, q, M, Mmax, efConstruction, mL)
  * Extra arguments: rand (for generating random value between 0 and 1)
- * Note: max_con is not used for level 0, instead max_connections_0 is used
+ * Note: max_con is not used for layer 0, instead max_connections_0 is used
 */
 HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, int ef_con, float normal_factor, function<double()> rand) {
     vector<pair<float, int>> entry_points;
     entry_points.reserve(ef_con);
     int top = hnsw->layers - 1;
 
-    // Get node level
-    int node_level = -log(rand()) * normal_factor;
-    hnsw->mappings[query].resize(node_level + 1);
+    // Get node layer
+    int node_layer = -log(rand()) * normal_factor;
+    hnsw->mappings[query].resize(node_layer + 1);
 
     // Update layer count
-    if (node_level > top) {
-        hnsw->layers = node_level + 1;
+    if (node_layer > top) {
+        hnsw->layers = node_layer + 1;
         if (config->debug_insert)
             cout << "Layer count increased to " << hnsw->layers << endl;
     }
@@ -287,25 +287,25 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
     entry_points.push_back(make_pair(dist, hnsw->entry_point));
 
     if (config->debug_insert)
-        cout << "Inserting node " << query << " at level " << node_level << " with entry point " << entry_points[0].second << endl;
+        cout << "Inserting node " << query << " at layer " << node_layer << " with entry point " << entry_points[0].second << endl;
 
-    // Get closest element by using search_layer to find the closest point at each level
-    for (int level = top; level >= node_level + 1; level--) {
-        search_layer(config, hnsw, hnsw->nodes[query], entry_points, 1, level);
+    // Get closest element by using search_layer to find the closest point at each layer
+    for (int layer = top; layer >= node_layer + 1; layer--) {
+        search_layer(config, hnsw, hnsw->nodes[query], entry_points, 1, layer);
 
         if (config->debug_insert)
-            cout << "Closest point at level " << level << " is " << entry_points[0].second << " (" << entry_points[0].first << ")" << endl;
+            cout << "Closest point at layer " << layer << " is " << entry_points[0].second << " (" << entry_points[0].first << ")" << endl;
     }
 
-    for (int level = min(top, node_level); level >= 0; level--) {
-        if (level == 0)
+    for (int layer = min(top, node_layer); layer >= 0; layer--) {
+        if (layer == 0)
             max_con = config->max_connections_0;
 
         // Get nearest elements
-        search_layer(config, hnsw, hnsw->nodes[query], entry_points, ef_con, level);
+        search_layer(config, hnsw, hnsw->nodes[query], entry_points, ef_con, layer);
 
         // Initialize mapping vector
-        vector<pair<float, int>>& neighbors = hnsw->mappings[query][level];
+        vector<pair<float, int>>& neighbors = hnsw->mappings[query][layer];
         neighbors.reserve(max_con + 1);
         neighbors.resize(min(opt_con, (int)entry_points.size()));
 
@@ -313,7 +313,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
         copy_n(entry_points.begin(), min(opt_con, (int)entry_points.size()), neighbors.begin());
 
         if (config->debug_insert) {
-            cout << "Neighbors at level " << level << " are ";
+            cout << "Neighbors at layer " << layer << " are ";
             for (auto n_pair : neighbors)
                 cout << n_pair.second << " (" << n_pair.first << ") ";
             cout << endl;
@@ -321,10 +321,10 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
 
         //Connect neighbors to this node
         for (auto n_pair : neighbors) {
-            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][level];
+            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][layer];
 
             // Place query in correct position in neighbor_mapping
-            float new_dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[n_pair.second], config->dimensions, level);
+            float new_dist = calculate_l2_sq(hnsw->nodes[query], hnsw->nodes[n_pair.second], config->dimensions, layer);
             auto new_pair = make_pair(new_dist, query);
             auto pos = lower_bound(neighbor_mapping.begin(), neighbor_mapping.end(), new_pair);
             neighbor_mapping.insert(pos, new_pair);
@@ -332,7 +332,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
 
         // Trim neighbor connections if needed
         for (auto n_pair : neighbors) {
-            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][level];
+            vector<pair<float, int>>& neighbor_mapping = hnsw->mappings[n_pair.second][layer];
             if (neighbor_mapping.size() > max_con) {
                 // Pop last element (size will be max_con after this)
                 neighbor_mapping.pop_back();
@@ -344,7 +344,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
             entry_points.resize(1);
     }
 
-    if (node_level > top) {
+    if (node_layer > top) {
         hnsw->entry_point = query;
     }
     return hnsw;
@@ -375,7 +375,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
             if (loc != cur_groundtruth.end()) {
                 // Get neighbor index (xth closest) and log distance comp
                 int index = distance(cur_groundtruth.begin(), loc);
-                when_neigh_found[index] = level0_dist_comps;
+                when_neigh_found[index] = layer0_dist_comps;
                 ++nn_found;
                 ++correct_nn_found;
                 if (config->gt_smart_termination && nn_found == config->num_return)
@@ -447,7 +447,7 @@ void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, i
                         if (loc != cur_groundtruth.end()) {
                             // Get neighbor index (xth closest) and log distance comp
                             int index = distance(cur_groundtruth.begin(), loc);
-                            when_neigh_found[index] = level0_dist_comps;
+                            when_neigh_found[index] = layer0_dist_comps;
                             ++nn_found;
                             ++correct_nn_found;
                             if (config->gt_smart_termination && nn_found == config->num_return)
@@ -497,13 +497,13 @@ vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>
     if (config->debug_search)
         cout << "Searching for " << num_to_return << " nearest neighbors of node " << query.first << endl;
 
-    // Get closest element by using search_layer to find the closest point at each level
-    for (int level = top; level >= 1; level--) {
-        search_layer(config, hnsw, query.second, entry_points, 1, level);
+    // Get closest element by using search_layer to find the closest point at each layer
+    for (int layer = top; layer >= 1; layer--) {
+        search_layer(config, hnsw, query.second, entry_points, 1, layer);
         path.push_back(entry_points[0].second);
 
         if (config->debug_search)
-            cout << "Closest point at level " << level << " is " << entry_points[0].second << " (" << entry_points[0].first << ")" << endl;
+            cout << "Closest point at layer " << layer << " is " << entry_points[0].second << " (" << entry_points[0].first << ")" << endl;
     }
 
     if (config->debug_query_search_index == query.first) {
@@ -522,7 +522,7 @@ vector<pair<float, int>> nn_search(Config* config, HNSW* hnsw, pair<int, float*>
     }
 
     if (config->debug_search) {
-        cout << "All closest points at level 0 are ";
+        cout << "All closest points at layer 0 are ";
         for (auto n_pair : entry_points)
             cout << n_pair.second << " (" << n_pair.first << ") ";
         cout << endl;
@@ -569,7 +569,7 @@ HNSW* init_hnsw(Config* config, float** nodes) {
 }
 
 void insert_nodes(Config* config, HNSW* hnsw) {
-    mt19937 rand(config->level_seed);
+    mt19937 rand(config->insertion_seed);
     uniform_real_distribution<double> dis(0.0000001, 0.9999999);
 
     double normal_factor = 1 / -log(config->scaling_factor);
@@ -592,7 +592,7 @@ void print_hnsw(Config* config, HNSW* hnsw) {
 
         cout << "Nodes per layer: " << endl;
         for (int i = 0; i < hnsw->layers; ++i)
-            cout << "Level " << i << ": " << nodes_per_layer[i] << endl;
+            cout << "Layer " << i << ": " << nodes_per_layer[i] << endl;
         cout << endl;
 
         for (int i = 0; i < hnsw->layers; ++i) {
@@ -660,7 +660,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             }
         }
         cur_groundtruth = actual_neighbors[i];
-        level0_dist_comps = 0;
+        layer0_dist_comps = 0;
         upper_dist_comps = 0;
         vector<pair<float, int>> found = nn_search(config, hnsw, query, config->num_return, config->ef_search, paths[i]);
         if (config->gt_dist_log)
@@ -706,7 +706,7 @@ void run_query_search(Config* config, HNSW* hnsw, float** queries) {
             if (config->print_total_found)
                 total_found += matching;
             if (config->export_indiv)
-                *indiv_file << matching / (double)config->num_return << " " << level0_dist_comps << " " << upper_dist_comps << endl;
+                *indiv_file << matching / (double)config->num_return << " " << layer0_dist_comps << " " << upper_dist_comps << endl;
         }
 
         if (config->export_queries) {
@@ -769,8 +769,8 @@ void export_graph(Config* config, HNSW* hnsw, float** nodes) {
         file << "Edges" << endl;
         for (int i = 0; i < config->num_nodes; ++i) {
             file << i << endl;
-            for (int level = 0; level < hnsw->mappings[i].size(); ++level) {
-                for (auto n_pair : hnsw->mappings[i][level])
+            for (int layer = 0; layer < hnsw->mappings[i].size(); ++layer) {
+                for (auto n_pair : hnsw->mappings[i][layer])
                     file << n_pair.second << ",";
                 file << endl;
             }

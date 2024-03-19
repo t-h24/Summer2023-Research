@@ -7,7 +7,7 @@
 #include <random>
 #include <functional>
 
-extern long long int level0_dist_comps;
+extern long long int layer0_dist_comps;
 extern long long int upper_dist_comps;
 
 extern std::ofstream* debug_file;
@@ -21,7 +21,7 @@ public:
 
     int graph_seed = 0;
     int query_seed = 100000;
-    int level_seed = 1000000;
+    int insertion_seed = 1000000;
 
     int gen_min = 0;
     int gen_max = 100000;
@@ -68,7 +68,7 @@ class HNSW {
 public:
     int node_size;
     float** nodes;
-    // This vector stores vectors by node index, then level, then connection pair
+    // This vector stores vectors by node index, then layer number, then connection pair
     std::vector<std::vector<std::vector<std::pair<float, int>>>> mappings;
     int entry_point;
     int layers;
@@ -77,7 +77,7 @@ public:
 };
 
 // Helper functions
-float calculate_l2_sq(float* a, float* b, int size, int level);
+float calculate_l2_sq(float* a, float* b, int size, int layer);
 void load_fvecs(const std::string& file, const std::string& type, float** nodes, int num, int dim, bool has_groundtruth);
 void load_ivecs(const std::string& file, std::vector<std::vector<int>>& results, int num, int dim);
 

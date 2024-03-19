@@ -13,12 +13,12 @@ const bool RUN_SEARCH = true;
 void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_nodes, int num_layers) {
     // Load node neighbors
     for (int i = 0; i < num_nodes; ++i) {
-        int levels;
-        graph_file.read(reinterpret_cast<char*>(&levels), sizeof(levels));
-        hnsw->mappings[i].resize(levels);
+        int layers;
+        graph_file.read(reinterpret_cast<char*>(&layers), sizeof(layers));
+        hnsw->mappings[i].resize(layers);
 
-        // Load level
-        for (int j = 0; j < levels; ++j) {
+        // Load layers
+        for (int j = 0; j < layers; ++j) {
             int num_neighbors;
             graph_file.read(reinterpret_cast<char*>(&num_neighbors), sizeof(num_neighbors));
             hnsw->mappings[i][j].reserve(num_neighbors);

@@ -42,7 +42,7 @@ int main() {
         config->max_connections = max_connections[i];
         config->max_connections_0 = max_connections_0[i];
         config->ef_construction = ef_constructions[i];
-        level0_dist_comps = 0;
+        layer0_dist_comps = 0;
         upper_dist_comps = 0;
 
         // Sanity checks
@@ -63,21 +63,21 @@ int main() {
         auto end = chrono::high_resolution_clock::now();
         auto duration = chrono::duration_cast<chrono::milliseconds>(end - start).count();
         cout << "Time taken: " << duration / 1000.0 << " seconds" << endl;
-        cout << "Distance computations (level 0): " << level0_dist_comps << endl;
-        cout << "Distance computations (top levels): " << upper_dist_comps << endl;
+        cout << "Distance computations (layer 0): " << layer0_dist_comps << endl;
+        cout << "Distance computations (top layers): " << upper_dist_comps << endl;
 
         // Export graph to file
         ofstream graph_file(EXPORT_DIR + EXPORT_NAME + "_graph_" + to_string(i) + ".bin");
 
         // Export edges
         for (int i = 0; i < config->num_nodes; ++i) {
-            int levels = hnsw->mappings[i].size();
+            int layers = hnsw->mappings[i].size();
 
-            // Write level size
-            graph_file.write(reinterpret_cast<const char*>(&levels), sizeof(levels));
+            // Write number of layers
+            graph_file.write(reinterpret_cast<const char*>(&layers), sizeof(layers));
 
-            // Write level
-            for (int j = 0; j < levels; ++j) {
+            // Write layers
+            for (int j = 0; j < layers; ++j) {
                 int num_neighbors = hnsw->mappings[i][j].size();
 
                 // Write number of neighbors
@@ -104,7 +104,7 @@ int main() {
             << config->max_connections_0 << " " << config->ef_construction << endl;
         info_file << config->num_nodes << endl;
         info_file << hnsw->layers << endl;
-        info_file << level0_dist_comps << endl;
+        info_file << layer0_dist_comps << endl;
         info_file << upper_dist_comps << endl;
         info_file << duration / 1000.0 << endl;
 
