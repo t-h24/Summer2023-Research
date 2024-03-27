@@ -1,7 +1,6 @@
 #include <iostream>
 #include <math.h>
 #include <algorithm>
-#include <set>
 #include <immintrin.h>
 #include <unordered_set>
 #include "hnsw.h"
@@ -356,7 +355,7 @@ HNSW* insert(Config* config, HNSW* hnsw, int query, int opt_con, int max_con, in
  * Note: Result is stored in entry_points (ep)
 */
 void search_layer(Config* config, HNSW* hnsw, float* query, vector<pair<float, int>>& entry_points, int num_to_return, int layer_num) {
-    set<int> visited;
+    unordered_set<int> visited;
     priority_queue<pair<float, int>, vector<pair<float, int>>, greater<pair<float, int>>> candidates;
     priority_queue<pair<float, int>> found;
 
