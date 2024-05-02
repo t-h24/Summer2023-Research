@@ -1,4 +1,5 @@
 #include <iostream>
+#include <chrono>
 #include "hnsw.h"
 
 using namespace std;
@@ -44,6 +45,7 @@ void load_hnsw_graph(HNSW* hnsw, ifstream& graph_file, float** nodes, int num_no
  * This class is used to run a single instance of the HNSW algorithm.
 */
 int main() {
+    auto begin_time = chrono::high_resolution_clock::now();
     time_t now = time(NULL);
     cout << "HNSW run started at " << ctime(&now);
 
@@ -110,10 +112,15 @@ int main() {
         // Generate num_queries amount of queries
         float** queries = new float*[config->num_queries];
         load_queries(config, nodes, queries);
+        auto search_start = chrono::high_resolution_clock::now();
+        cout << "Time passed: " << chrono::duration_cast<chrono::milliseconds>(search_start - begin_time).count() << " ms" << endl;
         cout << "Beginning search" << endl;
 
         // Run query search and print results
         run_query_search(config, hnsw, queries);
+
+        auto search_end = chrono::high_resolution_clock::now();
+        cout << "Time passed: " << chrono::duration_cast<chrono::milliseconds>(search_end - search_start).count() << " ms" << endl;
 
         // Delete queries
         for (int i = 0; i < config->num_queries; ++i)
@@ -135,6 +142,9 @@ int main() {
 
     now = time(NULL);
     cout << "HNSW run ended at " << ctime(&now);
+
+    auto end_time = chrono::high_resolution_clock::now();
+    cout << "Total time taken: " << chrono::duration_cast<chrono::milliseconds>(end_time - begin_time).count() << " ms" << endl;
 
     return 0;
 }
